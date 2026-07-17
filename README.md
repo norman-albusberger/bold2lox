@@ -25,8 +25,8 @@ Voraussetzungen: LoxBerry ≥ 3.0, ein **Bold Connect** im Haus, ein gültiger
 
 ## Einrichtung (im LoxBerry-Webmenü → bold2lox)
 
-1. Tab **Login**: mit Telefonnummer + Code + Passwort einmalig anmelden
-   (holt die Tokens automatisch, siehe unten).
+1. Tab **Login**: „Open Bold login" → im Browser anmelden → den
+   `boldsmartlock://auth?code=…`-Code zurück ins Plugin einfügen (siehe unten).
 2. Tab **Einstellungen**: speichern → das Geräte-Dropdown füllt sich (**Discover**).
    Schloss auswählen → `device_id`/`gateway_id` werden gesetzt.
 3. Im **Verbindungstest** unten „Diagnose" laufen lassen (zeigt Token/Gerät/Bold
@@ -44,25 +44,31 @@ Refresh-Token und **erneuert den Access-Token automatisch** am Token-Endpoint
 dann läuft es verlässlich. Bestätigte Endpoints (aus
 [homeassistant_bold](https://github.com/lwestenberg/homeassistant_bold)):
 
-- Token/Refresh/Login: `https://api.boldsmartlock.com/v2/oauth/token`
-- Verifizierung: `https://api.boldsmartlock.com/v2/verification/{request-code,verify-code}`
+- Authorize: `https://auth.boldsmartlock.com/?client_id=BoldApp&redirect_uri=boldsmartlock://auth&response_type=code`
+- Token/Refresh: `https://api.boldsmartlock.com/v2/oauth/token`
 
-**Erst-Anmeldung – im Plugin, ohne externe Tools** (Tab **Login**): Ein
-3-Schritt-Assistent holt die Tokens direkt über deinen Bold-Account:
+**Erst-Anmeldung – im Plugin, ohne externe Tools** (Tab **Login**), exakt der
+OAuth2-Authorization-Code-Flow der Bold-App:
 
-1. **Telefonnummer** (Bold-Account, international z. B. `+49170…`) → Code per
-   SMS oder E-Mail anfordern.
-2. **Verifizierungscode** eingeben.
-3. **Bold-Passwort** eingeben → das Plugin holt Access- + Refresh-Token und legt
-   sie (samt der festen App-Client-Credentials) in `settings.json` ab.
+1. **„Open Bold login"** → Bolds Login-Seite öffnet sich (Passwort oder
+   Apple/Google/Microsoft). Am besten in einem **Desktop-Browser ohne installierte
+   Bold-App**.
+2. Nach dem Login versucht der Browser, `boldsmartlock://auth?code=…` zu öffnen und
+   zeigt einen Fehler – das ist gewollt. Die **ganze URL** (oder nur `code=…`) aus
+   der Adresszeile kopieren.
+3. Im Plugin einfügen → es tauscht den Code gegen Access- + Refresh-Token
+   (`grant_type=authorization_code`, feste `BoldApp`-Credentials) und legt sie in
+   `settings.json` ab.
 
-Danach übernimmt der Auto-Refresh; du musst das nie wiederholen. Der Login nutzt
-den **Legacy-Flow** mit den Client-Credentials der Bold-App (`BoldApp`, aus
-[homebridge-bold](https://github.com/StefanNienhuis/homebridge-bold)) — daher ist
-**keine eigene OAuth-Registrierung** nötig.
+Danach übernimmt der Auto-Refresh (`grant_type=refresh_token`, dieselben
+Credentials) — **self-contained, kein Fremdserver, nie wiederholen**. Der Code ist
+einmalig und kurzlebig, also zügig nach dem Login einfügen. `BoldApp`-Credentials
+und der `User-Agent` (Versions-Gate, s. u.) stammen aus einem Live-Mitschnitt der
+Bold-App.
 
-> Hinweis: Der Legacy-Login erlaubt nur **eine** aktive Session — deine Bold-App
-> auf dem Handy wird dabei ggf. abgemeldet. Für eine Steuerbrücke meist ok.
+> Historie: Bold hat den früheren Passwort-Login (`grant_type=password`)
+> abgeschaltet (Fehler `OldAppVersion`); die App nutzt heute den obigen
+> Authorization-Code-Flow.
 
 Wird der Refresh-Token ungültig (Passwortänderung, Widerruf, lange Inaktivität),
 einfach den Login-Tab erneut durchlaufen. Diagnose: `bold_engine.py token`

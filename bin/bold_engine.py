@@ -26,10 +26,10 @@ Aufruf:
   bold_engine.py token               # Token erneuern/pruefen (Diagnose)
   bold_engine.py diagnose            # Schritt-fuer-Schritt-Check (Token/Geraete/Gateway)
 
-Bootstrap-Login (Payload als JSON ueber stdin, damit nichts in der Prozessliste steht):
-  echo '{"phone":"+49…","destination":"Phone"}'      | bold_engine.py login-request
-  echo '{"phone":"+49…","code":"123456"}'            | bold_engine.py login-verify
-  echo '{"phone":"+49…","password":"…","mfa_token":"…"}' | bold_engine.py login-auth
+Bootstrap-Login (OAuth2 Authorization Code, Payload als JSON ueber stdin):
+  # Browser-Login: https://auth.boldsmartlock.com/?client_id=BoldApp&redirect_uri=boldsmartlock://auth&response_type=code
+  # Danach den Code aus der boldsmartlock://auth?code=... Redirect-URL nehmen:
+  echo '{"code":"boldsmartlock://auth?code=..."}'    | bold_engine.py login-exchange
 
 Konfiguration: settings.json (Pfad via $BOLD2LOX_SETTINGS oder Standardpfad).
 """
@@ -337,55 +337,40 @@ def cmd_diagnose(cfg):
 
 
 # --------------------------------------------------------------------------- #
-# Bootstrap-Login (Legacy: Telefonnummer + Code + Passwort -> Tokens)
+# Bootstrap-Login (OAuth2 Authorization Code, wie die aktuelle Bold-App)
 # --------------------------------------------------------------------------- #
+# Flow: Nutzer meldet sich im Browser an unter
+#   https://auth.boldsmartlock.com/?client_id=BoldApp&redirect_uri=boldsmartlock://auth&response_type=code
+# Bold leitet auf  boldsmartlock://auth?code=<CODE>  um. Der Code wird hier gegen
+# access/refresh getauscht. Client-Credentials = feste BoldApp-Werte -> Refresh
+# danach self-contained mit denselben Credentials.
 
-def cmd_login_request(cfg, payload):
-    """Schritt 1: Verifizierungscode anfordern (SMS oder E-Mail)."""
-    url = cfg.get("auth_base", DEFAULT_AUTH_BASE).rstrip("/") + "/verification/request-code"
-    body = json.dumps({
-        "phoneNumber": payload.get("phone", ""),
-        "language": payload.get("language", "en"),
-        "destination": payload.get("destination", "Phone"),
-    }).encode("utf-8")
-    st, txt = _raw_request(url, "POST",
-                           _with_common_headers(cfg, {"Content-Type": "application/json",
-                                                      "Accept": "application/json"}),
-                           body, cfg.get("http_timeout_seconds", 15))
-    ok = 200 <= st < 300
-    print(json.dumps({"ok": ok, "status": st, "detail": "" if ok else _short(txt)}))
-    return 0 if ok else 1
+BOLD_REDIRECT_URI = "boldsmartlock://auth"
 
 
-def cmd_login_verify(cfg, payload):
-    """Schritt 2: Code pruefen -> verificationToken (MFA-Token)."""
-    url = cfg.get("auth_base", DEFAULT_AUTH_BASE).rstrip("/") + "/verification/verify-code"
-    body = json.dumps({
-        "phoneNumber": payload.get("phone", ""),
-        "verificationCode": payload.get("code", ""),
-    }).encode("utf-8")
-    st, txt = _raw_request(url, "POST",
-                           _with_common_headers(cfg, {"Content-Type": "application/json",
-                                                      "Accept": "application/json"}),
-                           body, cfg.get("http_timeout_seconds", 15))
-    if not (200 <= st < 300):
-        print(json.dumps({"ok": False, "status": st, "detail": _short(txt)}))
+def _extract_code(raw):
+    """Akzeptiert entweder den nackten Code oder die volle
+    'boldsmartlock://auth?code=...'-Redirect-URL."""
+    raw = (raw or "").strip()
+    if "code=" in raw:
+        raw = raw.split("code=", 1)[1].split("&", 1)[0]
+    return urllib.parse.unquote(raw)
+
+
+def cmd_login_exchange(cfg, payload):
+    """Tauscht den Authorization-Code gegen access/refresh und legt sie samt der
+    BoldApp-Client-Credentials in settings.json ab."""
+    code = _extract_code(payload.get("code", ""))
+    if not code:
+        print(json.dumps({"ok": False, "detail": "kein Code angegeben"}))
         return 1
-    token = (json.loads(txt or "{}") or {}).get("verificationToken", "")
-    print(json.dumps({"ok": True, "verificationToken": token}))
-    return 0
-
-
-def cmd_login_auth(cfg, payload):
-    """Schritt 3: Passwort + MFA-Token -> access/refresh, in settings.json ablegen."""
     url = cfg.get("token_url", DEFAULT_TOKEN_URL)
     form = urllib.parse.urlencode({
-        "grant_type": "password",
-        "username": payload.get("phone", ""),
-        "password": payload.get("password", ""),
-        "mfa_token": payload.get("mfa_token", ""),
+        "grant_type": "authorization_code",
         "client_id": LEGACY_CLIENT_ID,
         "client_secret": LEGACY_CLIENT_SECRET,
+        "redirect_uri": cfg.get("redirect_uri", BOLD_REDIRECT_URI),
+        "code": code,
     }).encode("utf-8")
     st, txt = _raw_request(url, "POST",
                            _with_common_headers(cfg, {"Content-Type": "application/x-www-form-urlencoded",
@@ -411,20 +396,16 @@ def cmd_login_auth(cfg, payload):
 
 def main(argv):
     action = argv[1] if len(argv) > 1 else ""
-    login_actions = {"login-request", "login-verify", "login-auth"}
+    login_actions = {"login-exchange"}
     known = {"activate", "deactivate", "status", "discover", "token", "diagnose"} | login_actions
     if action not in known:
         print(__doc__)
         return 2
     cfg = load_settings()
     if action in login_actions:
-        payload = json.load(sys.stdin)  # sensible Werte kommen ueber stdin, nicht argv
-        if action == "login-request":
-            return cmd_login_request(cfg, payload)
-        if action == "login-verify":
-            return cmd_login_verify(cfg, payload)
-        if action == "login-auth":
-            return cmd_login_auth(cfg, payload)
+        payload = json.load(sys.stdin)  # Code kommt ueber stdin, nicht argv
+        if action == "login-exchange":
+            return cmd_login_exchange(cfg, payload)
     if action == "activate":
         return cmd_activate(cfg)
     if action == "deactivate":
