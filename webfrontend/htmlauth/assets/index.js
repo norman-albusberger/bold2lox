@@ -55,6 +55,52 @@
         });
     }
 
+    // Test / Diagnose auf der Einstellungsseite
+    function renderResult(box, data) {
+        box.innerHTML = "";
+        if (data && Array.isArray(data.steps)) {
+            data.steps.forEach(function (s) {
+                var row = document.createElement("div");
+                row.className = "diag-step " + (s.ok ? "ok" : "bad");
+                row.innerHTML = "<span class='mark'>" + (s.ok ? "✓" : "✗") +
+                    "</span><strong>" + s.name + "</strong><span class='detail'>" +
+                    (s.detail || "") + "</span>";
+                box.appendChild(row);
+            });
+        } else if (data) {
+            // activate-Antwort: {http, ok, errorCode}
+            var ok = data.ok === 1 || data.ok === true;
+            var row = document.createElement("div");
+            row.className = "diag-step " + (ok ? "ok" : "bad");
+            row.innerHTML = "<span class='mark'>" + (ok ? "✓" : "✗") +
+                "</span><strong>Schloss ausgeloest</strong><span class='detail'>" +
+                JSON.stringify(data) + "</span>";
+            box.appendChild(row);
+        }
+    }
+
+    function runTest(what) {
+        var box = document.getElementById("diagResult");
+        box.innerHTML = "<div class='diag-step'>…</div>";
+        fetch("test.php?what=" + encodeURIComponent(what))
+            .then(function (r) { return r.json(); })
+            .then(function (d) { renderResult(box, d); })
+            .catch(function (e) {
+                box.innerHTML = "<div class='diag-step bad'><span class='mark'>✗</span>" +
+                    "<span class='detail'>Fehler: " + e + "</span></div>";
+            });
+    }
+
+    var btnDiag = document.getElementById("btnDiagnose");
+    if (btnDiag) btnDiag.addEventListener("click", function () { runTest("diagnose"); });
+
+    var btnAct = document.getElementById("btnActivateTest");
+    if (btnAct) btnAct.addEventListener("click", function () {
+        if (window.confirm("Das Schloss wird jetzt testweise ausgeloest. Fortfahren?")) {
+            runTest("activate");
+        }
+    });
+
     // Geraete-Dropdown -> device_id / gateway_id fuellen
     var pick = document.getElementById("device_pick");
     if (pick) {

@@ -118,6 +118,12 @@ if (!empty($settings['bold']['refresh_token'])) {
                value="<?= htmlspecialchars((string)($settings['bold']['gateway_id'] ?? 0)) ?>">
     </div>
 
+    <h2><?= $L['SETTINGS.TEST_SECTION'] ?></h2>
+    <p class="hint"><?= $L['SETTINGS.TEST_HINT'] ?></p>
+    <button type="button" id="btnDiagnose" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['SETTINGS.DIAGNOSE_BTN'] ?></button>
+    <button type="button" id="btnActivateTest" class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"><?= $L['SETTINGS.ACTIVATE_BTN'] ?></button>
+    <div id="diagResult" class="diag-result"></div>
+
     <h2><?= $L['SETTINGS.MS_SECTION'] ?></h2>
 
     <div class="ui-field-contain">

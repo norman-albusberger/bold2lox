@@ -24,6 +24,7 @@ Aufruf:
   bold_engine.py status              # Status holen und per UDP an den Miniserver
   bold_engine.py discover [--json]   # device_id / gateway_id auflisten (fuer die Web-UI)
   bold_engine.py token               # Token erneuern/pruefen (Diagnose)
+  bold_engine.py diagnose            # Schritt-fuer-Schritt-Check (Token/Geraete/Gateway)
 
 Konfiguration: settings.json (Pfad via $BOLD2LOX_SETTINGS oder Standardpfad).
 """
@@ -232,9 +233,56 @@ def cmd_token(cfg):
     return 0
 
 
+def cmd_diagnose(cfg):
+    """Prueft Zugang Schritt fuer Schritt und meldet je Schritt ok + Detail –
+    damit man vor der Loxone-Config sofort sieht, woran es haengt. Loest das
+    Schloss NICHT aus."""
+    steps = []
+
+    # 1) Token aus den Zugangsdaten erneuern
+    try:
+        get_access_token(cfg, force=True)
+        rem = _bold(cfg).get("access_token_expiry", 0) - int(time.time())
+        steps.append({"name": "Zugangsdaten / Token", "ok": True,
+                      "detail": f"Access-Token erneuert, gueltig ~{rem}s"})
+    except SystemExit as exc:
+        steps.append({"name": "Zugangsdaten / Token", "ok": False, "detail": str(exc)})
+        print(json.dumps({"ok": False, "steps": steps}))
+        return 1  # ohne Token keine weiteren Schritte moeglich
+
+    # 2) Geraeteliste – ist das gewaehlte Schloss sichtbar?
+    try:
+        _, perms = api_request(cfg, "GET", "/effective-device-permissions")
+        devs = list(_iter_devices(perms))
+        sel = str(_device_id(cfg))
+        found = any(str(d.get("id")) == sel for d in devs)
+        steps.append({"name": "Geraeteliste", "ok": bool(found),
+                      "detail": f"{len(devs)} Geraet(e) sichtbar; device_id {sel} "
+                                + ("gefunden" if found else "NICHT gefunden – bitte Schloss waehlen")})
+    except SystemExit as exc:
+        steps.append({"name": "Geraeteliste", "ok": False, "detail": str(exc)})
+
+    # 3) Bold Connect erreichbar?
+    try:
+        gw_id = _gateway_id(cfg)
+        if not gw_id:
+            steps.append({"name": "Bold Connect", "ok": False, "detail": "keine gateway_id gesetzt"})
+        else:
+            _, gw = api_request(cfg, "GET", f"/gateways/{gw_id}/current-status")
+            online = not (isinstance(gw, dict) and gw.get("errorCode"))
+            steps.append({"name": "Bold Connect", "ok": bool(online),
+                          "detail": "online" if online else "offline/unerreichbar: " + json.dumps(gw)})
+    except SystemExit as exc:
+        steps.append({"name": "Bold Connect", "ok": False, "detail": str(exc)})
+
+    ok_all = all(s["ok"] for s in steps)
+    print(json.dumps({"ok": ok_all, "steps": steps}))
+    return 0 if ok_all else 1
+
+
 def main(argv):
     action = argv[1] if len(argv) > 1 else ""
-    if action not in {"activate", "deactivate", "status", "discover", "token"}:
+    if action not in {"activate", "deactivate", "status", "discover", "token", "diagnose"}:
         print(__doc__)
         return 2
     cfg = load_settings()
@@ -248,6 +296,8 @@ def main(argv):
         return cmd_discover(cfg, as_json=("--json" in argv))
     if action == "token":
         return cmd_token(cfg)
+    if action == "diagnose":
+        return cmd_diagnose(cfg)
 
 
 if __name__ == "__main__":

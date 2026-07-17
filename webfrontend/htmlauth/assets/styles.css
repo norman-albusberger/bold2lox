@@ -45,3 +45,27 @@
     min-height: 1.4em;
     margin-top: 0.6em;
 }
+
+.diag-result {
+    margin-top: 0.8em;
+}
+.diag-step {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5em;
+    padding: 0.5em 0.7em;
+    margin-bottom: 0.4em;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.04);
+    border-left: 5px solid #999;
+}
+.diag-step.ok  { border-left-color: #2e7d32; }
+.diag-step.bad { border-left-color: #c62828; }
+.diag-step .mark { font-weight: bold; }
+.diag-step.ok  .mark { color: #2e7d32; }
+.diag-step.bad .mark { color: #c62828; }
+.diag-step .detail {
+    opacity: 0.85;
+    font-size: 0.88em;
+    word-break: break-word;
+}
