@@ -18,6 +18,7 @@ $secret    = $settings['trigger_secret'] ?? '';
 $udpPort   = $settings['miniserver']['udp_port'] ?? 4001;
 $hasToken  = !empty($settings['bold']['refresh_token']);
 $hasDevice = !empty($settings['bold']['device_id']);
+$configComplete = $hasToken && $hasDevice && $secret !== '';
 
 $baseUrl  = "http://{$server_ip}/plugins/bold2lox/activate.php";
 $openUrl  = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=open";
@@ -55,10 +56,18 @@ $closeUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=close";
 
     <h2><?= $L['OVERVIEW.TEMPLATES'] ?></h2>
     <p class="hint"><?= $L['OVERVIEW.TEMPLATES_HELP'] ?></p>
-    <p>
-        <a href="template.php?type=vo" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VO'] ?></a>
-        <a href="template.php?type=vi" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VI'] ?></a>
-    </p>
+    <?php if ($configComplete): ?>
+        <p>
+            <a href="template.php?type=vo" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VO'] ?></a>
+            <a href="template.php?type=vi" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VI'] ?></a>
+        </p>
+    <?php else: ?>
+        <p>
+            <button class="ui-btn ui-btn-a ui-corner-all ui-btn-inline" disabled><?= $L['OVERVIEW.TEMPLATE_VO'] ?></button>
+            <button class="ui-btn ui-btn-a ui-corner-all ui-btn-inline" disabled><?= $L['OVERVIEW.TEMPLATE_VI'] ?></button>
+        </p>
+        <div class="diag-step bad"><span class="mark">✗</span><span class="detail"><?= $L['OVERVIEW.TEMPLATES_LOCKED'] ?></span></div>
+    <?php endif; ?>
 
     <h2><?= $L['COMMON.TEST'] ?></h2>
     <button id="testOpen" class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"

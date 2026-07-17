@@ -27,6 +27,15 @@ $type = $_GET['type'] ?? 'vo';
 $enc  = ENT_XML1 | ENT_QUOTES;
 $a = fn($s) => htmlspecialchars((string)$s, $enc);
 
+// Der Ausgang braucht das Trigger-Secret in der URL – sonst waere die Vorlage
+// kaputt (activate.php antwortet mit 403). Also erst nach Konfiguration ausliefern.
+if ($type !== 'vi' && $secret === '') {
+    http_response_code(409);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Bitte zuerst das Trigger-Secret in den Einstellungen setzen.';
+    exit;
+}
+
 if ($type === 'vi') {
     $name = 'bold2lox-status';
     $templateType = '2';
@@ -82,7 +91,11 @@ header('Content-Length: ' . strlen($archive));
 echo $archive;
 
 
-/** Minimaler ZIP-Writer (Store, ohne ext-zip). $files = [name => inhalt]. */
+/**
+ * Minimaler ZIP-Writer OHNE ext-zip. Nutzt Deflate (Methode 8) wie die echten
+ * Loxone-Library-Vorlagen; faellt auf Store zurueck, falls gzdeflate fehlt.
+ * $files = [name => inhalt].
+ */
 function zip_store(array $files): string
 {
     $local = '';
@@ -91,19 +104,27 @@ function zip_store(array $files): string
     $count = 0;
     foreach ($files as $fname => $data) {
         $crc = crc32($data);
-        $len = strlen($data);
-        $lh = "PK\x03\x04" . pack('v', 20) . pack('v', 0) . pack('v', 0)
+        $ulen = strlen($data);
+        $comp = function_exists('gzdeflate') ? gzdeflate($data, 6) : false;
+        if ($comp === false) {
+            $method = 0;
+            $comp = $data;
+        } else {
+            $method = 8;
+        }
+        $clen = strlen($comp);
+        $lh = "PK\x03\x04" . pack('v', 20) . pack('v', 0) . pack('v', $method)
             . pack('v', 0) . pack('v', 0)
-            . pack('V', $crc) . pack('V', $len) . pack('V', $len)
+            . pack('V', $crc) . pack('V', $clen) . pack('V', $ulen)
             . pack('v', strlen($fname)) . pack('v', 0) . $fname;
-        $local .= $lh . $data;
+        $local .= $lh . $comp;
         $central .= "PK\x01\x02" . pack('v', 20) . pack('v', 20)
-            . pack('v', 0) . pack('v', 0) . pack('v', 0) . pack('v', 0)
-            . pack('V', $crc) . pack('V', $len) . pack('V', $len)
+            . pack('v', 0) . pack('v', $method) . pack('v', 0) . pack('v', 0)
+            . pack('V', $crc) . pack('V', $clen) . pack('V', $ulen)
             . pack('v', strlen($fname)) . pack('v', 0) . pack('v', 0)
             . pack('v', 0) . pack('v', 0) . pack('V', 0)
             . pack('V', $offset) . $fname;
-        $offset += strlen($lh) + $len;
+        $offset += strlen($lh) + $clen;
         $count++;
     }
     $eocd = "PK\x05\x06" . pack('v', 0) . pack('v', 0)
