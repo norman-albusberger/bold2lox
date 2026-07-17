@@ -62,5 +62,5 @@ $closeUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=close";
     <pre id="testResult" class="test-result"></pre>
 </div>
 
-<script src='assets/index.js?v=1'></script>
+<script src='assets/index.js?v=2'></script>
 <?php LBWeb::lbfooter(); ?>

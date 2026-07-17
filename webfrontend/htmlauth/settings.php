@@ -163,5 +163,5 @@ if (!empty($settings['bold']['refresh_token'])) {
     <button type="submit" class="ui-btn ui-btn-b ui-corner-all"><?= $L['COMMON.SAVE'] ?></button>
 </form>
 
-<script src='assets/index.js?v=1'></script>
+<script src='assets/index.js?v=2'></script>
 <?php LBWeb::lbfooter(); ?>

@@ -79,10 +79,20 @@
         }
     }
 
+    // Speichert die aktuellen Formularwerte, damit der Test nicht gegen einen
+    // veralteten gespeicherten Stand laeuft.
+    function saveForm() {
+        var form = document.querySelector("form");
+        if (!form) return Promise.resolve();
+        return fetch("save.php", { method: "POST", body: new FormData(form) })
+            .then(function (r) { return r.json(); });
+    }
+
     function runTest(what) {
         var box = document.getElementById("diagResult");
-        box.innerHTML = "<div class='diag-step'>…</div>";
-        fetch("test.php?what=" + encodeURIComponent(what))
+        box.innerHTML = "<div class='diag-step'>… (speichere &amp; teste)</div>";
+        saveForm()
+            .then(function () { return fetch("test.php?what=" + encodeURIComponent(what)); })
             .then(function (r) { return r.json(); })
             .then(function (d) { renderResult(box, d); })
             .catch(function (e) {
