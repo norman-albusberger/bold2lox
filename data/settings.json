@@ -1,5 +1,6 @@
 {
   "api_base": "https://api.boldsmartlock.com/v1",
+  "api_base_v2": "https://api.boldsmartlock.com/v2",
   "token_url": "https://api.boldsmartlock.com/v2/oauth/token",
   "auth_base": "https://api.boldsmartlock.com/v2",
   "auth_user_agent": "Bold/1172 CFNetwork/3860.700.1 Darwin/25.6.0",

@@ -49,7 +49,11 @@ SETTINGS_PATH = os.environ.get(
 
 DEFAULT_TOKEN_URL = "https://api.boldsmartlock.com/v2/oauth/token"
 DEFAULT_API_BASE = "https://api.boldsmartlock.com/v1"
+DEFAULT_API_BASE_V2 = "https://api.boldsmartlock.com/v2"
 DEFAULT_AUTH_BASE = "https://api.boldsmartlock.com/v2"
+# Bold device-type ids (aus der Lib): 1 = Schloss, 2 = Gateway (Bold Connect).
+DEVICE_TYPE_LOCK = 1
+DEVICE_TYPE_GATEWAY = 2
 # Feste Client-Credentials der Bold-App fuer den Legacy-Login (username/password +
 # SMS/E-Mail-Code). Oeffentlich bekannt/aus der App; erlaubt Bootstrap ohne eigene
 # OAuth-Registrierung. Quelle: StefanNienhuis/homebridge-bold.
@@ -181,8 +185,9 @@ def get_access_token(cfg, force=False):
 # API-Aufrufe
 # --------------------------------------------------------------------------- #
 
-def api_request(cfg, method, path, _retry=True):
-    url = cfg.get("api_base", DEFAULT_API_BASE).rstrip("/") + path
+def api_request(cfg, method, path, base=None, _retry=True):
+    root = (base or cfg.get("api_base", DEFAULT_API_BASE)).rstrip("/")
+    url = root + path
     req = urllib.request.Request(url, method=method)
     for key, val in _with_common_headers(cfg, {
         "Authorization": "Bearer " + get_access_token(cfg),
@@ -197,7 +202,7 @@ def api_request(cfg, method, path, _retry=True):
         # 401 trotz frischem Token -> einmal erzwungenen Refresh versuchen.
         if exc.code == 401 and _retry:
             get_access_token(cfg, force=True)
-            return api_request(cfg, method, path, _retry=False)
+            return api_request(cfg, method, path, base=base, _retry=False)
         detail = exc.read().decode("utf-8", "replace")
         if exc.code == 401:
             raise SystemExit("401 Unauthorized trotz Token-Refresh – Zugang pruefen (Einstellungen).")
@@ -237,15 +242,29 @@ def cmd_activate(cfg, deactivate=False):
     return 0 if ok else 1
 
 
-def _iter_devices(perms):
-    """Permissions-Antwort: Liste von Locations mit 'devices' (oder dict)."""
-    if isinstance(perms, list):
-        for loc in perms:
-            for dev in (loc.get("devices") or []):
-                yield dev
-    elif isinstance(perms, dict):
-        for dev in (perms.get("devices") or []):
-            yield dev
+def _v2_devices(perms):
+    """v2 /effective-device-permissions: Liste von {permissions, device}.
+    Liefert je (id, name, type_id)."""
+    if not isinstance(perms, list):
+        return
+    for entry in perms:
+        dev = (entry or {}).get("device") or {}
+        type_id = (((dev.get("model") or {}).get("type") or {}).get("id"))
+        yield dev.get("id"), dev.get("name"), type_id
+
+
+def _fetch_permissions(cfg):
+    return api_request(cfg, "GET", "/effective-device-permissions",
+                       base=cfg.get("api_base_v2", DEFAULT_API_BASE_V2))
+
+
+def _detect_gateway_id(cfg):
+    """Sucht das Gateway (Bold Connect, Typ 2) in den Permissions."""
+    _, perms = _fetch_permissions(cfg)
+    for dev_id, _name, type_id in _v2_devices(perms):
+        if type_id == DEVICE_TYPE_GATEWAY:
+            return dev_id
+    return 0
 
 
 def cmd_status(cfg):
@@ -254,30 +273,27 @@ def cmd_status(cfg):
         return 0
     _, gw = api_request(cfg, "GET", f"/gateways/{_gateway_id(cfg)}/current-status")
     online = 1 if not (isinstance(gw, dict) and gw.get("errorCode")) else 0
-    lines = [f"bold_gateway_online={online}"]
-    _, perms = api_request(cfg, "GET", "/effective-device-permissions")
-    for dev in _iter_devices(perms):
-        if str(dev.get("id")) == str(_device_id(cfg)):
-            if dev.get("batteryLevel") is not None:
-                lines.append(f"bold_battery={dev['batteryLevel']}")
-            break
-    send_udp(cfg, lines)
-    print(json.dumps({"pushed": lines}))
+    send_udp(cfg, [f"bold_gateway_online={online}"])
+    print(json.dumps({"pushed": [f"bold_gateway_online={online}"]}))
     return 0
 
 
 def cmd_discover(cfg, as_json=False):
-    _, perms = api_request(cfg, "GET", "/effective-device-permissions")
+    _, perms = _fetch_permissions(cfg)
+    parsed = list(_v2_devices(perms))
+    gateway_id = next((i for i, _n, t in parsed if t == DEVICE_TYPE_GATEWAY), 0)
+    # Schloesser (Typ 1) sind auswaehlbar; unbekannter Typ wird als Schloss gewertet.
     devices = [
-        {"id": dev.get("id"), "name": dev.get("name"), "gatewayId": dev.get("gatewayId")}
-        for dev in _iter_devices(perms)
+        {"id": i, "name": n, "gatewayId": gateway_id}
+        for i, n, t in parsed if t != DEVICE_TYPE_GATEWAY
     ]
     if as_json:
-        print(json.dumps({"devices": devices}))
+        print(json.dumps({"devices": devices, "gatewayId": gateway_id}))
         return 0
-    print("Gefundene Geraete (device_id / name / gatewayId):")
+    print("Gefundene Geraete (device_id / name):")
     for dev in devices:
-        print(f"  id={dev['id']}  name={dev['name']!r}  gateway={dev['gatewayId']}")
+        print(f"  id={dev['id']}  name={dev['name']!r}")
+    print(f"Gateway (Bold Connect): {gateway_id or 'nicht gefunden'}")
     return 0
 
 
@@ -308,13 +324,13 @@ def cmd_diagnose(cfg):
 
     # 2) Geraeteliste – ist das gewaehlte Schloss sichtbar?
     try:
-        _, perms = api_request(cfg, "GET", "/effective-device-permissions")
-        devs = list(_iter_devices(perms))
+        _, perms = _fetch_permissions(cfg)
+        parsed = list(_v2_devices(perms))
         sel = str(_device_id(cfg))
-        found = any(str(d.get("id")) == sel for d in devs)
+        found = any(str(i) == sel for i, _n, _t in parsed)
         steps.append({"name": "Geraeteliste", "ok": bool(found),
-                      "detail": f"{len(devs)} Geraet(e) sichtbar; device_id {sel} "
-                                + ("gefunden" if found else "NICHT gefunden – bitte Schloss waehlen")})
+                      "detail": f"{len(parsed)} Geraet(e) sichtbar; device_id {sel} "
+                                + ("gefunden" if found else "NICHT gefunden – bitte Discover/Schloss waehlen")})
     except SystemExit as exc:
         steps.append({"name": "Geraeteliste", "ok": False, "detail": str(exc)})
 
@@ -389,6 +405,8 @@ def cmd_login_exchange(cfg, payload):
     bold["refresh_token"] = body["refresh_token"]
     bold["access_token"] = body["access_token"]
     bold["access_token_expiry"] = int(time.time()) + int(body.get("expires_in", 3600))
+    if body.get("account_id"):
+        bold["account_id"] = body["account_id"]
     save_settings(cfg)
     print(json.dumps({"ok": True}))
     return 0
