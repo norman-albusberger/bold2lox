@@ -77,13 +77,14 @@ def _short(text, limit=400):
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-# Bold weist den Password-Grant mit "OldAppVersion" ab, wenn der Request nicht wie
-# die Bold-App aussieht. Die App nutzt den HTTP-Client OkHttp; dieser User-Agent
-# ist der einzige Unterschied zu einem sonst identischen, funktionierenden Login
-# (Quelle: koenieee/ESP32-BoldlockBluetoothImplementation). urllib sendet sonst
-# "Python-urllib/x". Ueberschreibbar via settings.json ("auth_user_agent"), plus
-# optionale Zusatz-Header ("auth_headers").
-DEFAULT_USER_AGENT = "okhttp/4.9.2"
+# Bold weist den Password-Grant mit "OldAppVersion" ab, wenn der User-Agent keine
+# aktuelle App-Version traegt. Die App-Version steckt IM User-Agent (z. B.
+# "Bold/1172" = iOS-Build 1172); einen separaten Versions-Header gibt es nicht.
+# Default = echter, aktueller App-UA (aus einem Live-Mitschnitt der iOS-App).
+# Wird Bold die Mindestversion irgendwann anheben, hier bzw. im UI-Feld
+# "auth_user_agent" die aktuelle Build-Nummer nachziehen. Zusatz-Header via
+# "auth_headers".
+DEFAULT_USER_AGENT = "Bold/1172 CFNetwork/3860.700.1 Darwin/25.6.0"
 
 
 def _with_common_headers(cfg, headers):
