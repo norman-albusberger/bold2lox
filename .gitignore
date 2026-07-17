@@ -1,0 +1,11 @@
+# Echte Config mit Token NICHT einchecken (nur das .example bleibt versioniert)
+config/bold2lox.cfg
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.idea/

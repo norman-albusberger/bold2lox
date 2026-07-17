@@ -1,0 +1,23 @@
+{
+  "api_base": "https://api.boldsmartlock.com/v1",
+
+  "// auth": "Bearer-Token von Bold. Siehe bin/bold_login.py, um ihn zu holen.",
+  "access_token": "PASTE_BOLD_ACCESS_TOKEN_HERE",
+  "refresh_token": "",
+
+  "// devices": "device_id und gateway_id kommen aus 'bold_engine.py discover'",
+  "device_id": 0,
+  "gateway_id": 0,
+
+  "// trigger": "Geteiltes Geheimnis, das die Loxone-Virtual-Output-URL mitschickt (?key=...)",
+  "trigger_secret": "CHANGE_ME_LONG_RANDOM_STRING",
+
+  "// miniserver": "Ziel fuer die UDP-Rueckmeldung (Virtual UDP Input in Loxone Config)",
+  "miniserver": {
+    "ip": "192.168.1.10",
+    "udp_port": 4001
+  },
+
+  "poll_interval_seconds": 300,
+  "http_timeout_seconds": 15
+}
