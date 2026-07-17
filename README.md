@@ -1,86 +1,86 @@
-# bold2lox – Loxone (Gen 1) ⇄ Bold Smart Lock
+# bold2lox – Bold Smart Lock für Loxone
 
-Bruecke, die dein Bold Smart Lock aus der Loxone-App bedienbar macht. Der
-Miniserver Gen 1 feuert nur einen simplen lokalen HTTP-GET; der LoxBerry macht
-HTTPS + Bearer-Auth gegen die Bold-Cloud, die ueber deinen **Bold Connect**
-(das Steckdosengeraet) das Schloss ausloest.
+LoxBerry-Plugin, das ein **Bold Smart Lock** aus der **Loxone-App** bedienbar
+macht. Der Miniserver (auch **Gen 1**) feuert nur einen simplen lokalen HTTP-GET;
+der LoxBerry macht HTTPS + Bearer-Auth gegen die Bold-Cloud, die über deinen
+**Bold Connect** (das Steckdosengerät) das Schloss auslöst.
 
 ```
 Loxone App → Miniserver (Virtual Output, HTTP-GET) → LoxBerry activate.php
           → bold_engine.py → HTTPS → Bold-Cloud → Bold Connect → Schloss
-Status:   Bold-Cloud → bold2lox-daemon → UDP → Miniserver (Virtual UDP Input) → App
+Status:   Bold-Cloud → bold2lox.service (Poller) → UDP → Miniserver (Virtual UDP Input) → App
 ```
 
-## Dateien / Zielpfade auf dem LoxBerry
+## Installation
 
-| Datei im Plugin                     | Zielpfad auf dem LoxBerry                                   |
-| ----------------------------------- | ---------------------------------------------------------- |
-| `bin/bold_engine.py`                | `/opt/loxberry/bin/plugins/bold2lox/bold_engine.py`        |
-| `bin/bold_login.py`                 | `/opt/loxberry/bin/plugins/bold2lox/bold_login.py`         |
-| `webfrontend/html/activate.php`     | `/opt/loxberry/webfrontend/html/plugins/bold2lox/activate.php` |
-| `daemon/bold2lox-daemon`            | `/opt/loxberry/bin/plugins/bold2lox/bold2lox-daemon`       |
-| `config/bold2lox.cfg.example`       | `/opt/loxberry/config/plugins/bold2lox/bold2lox.cfg`       |
+Als LoxBerry-Plugin installieren (ZIP über die LoxBerry-Plugin-Verwaltung, oder
+Auto-Update über `release.cfg`). Beim Einrichten laufen automatisch:
 
-Der Webfrontend-Pfad ergibt die Trigger-URL: `http://<loxberry-ip>/plugins/bold2lox/activate.php`
+- `preinstall.sh` – prüft `python3` (Abhängigkeiten; `requests` optional).
+- `postroot.sh` – legt den systemd-Dienst `bold2lox.service` an (Status-Poller).
+- `uninstall/uninstall` – stoppt/entfernt den Dienst und räumt Daten/Logs auf.
 
-## Einrichtung (einmalig)
+Voraussetzungen: LoxBerry ≥ 3.0, ein **Bold Connect** im Haus, ein gültiger
+**Bold-Access-Token**.
 
-1. **Abhaengigkeiten:** `pip3 install bold-smart-lock aiohttp`
-   (nur fuer `bold_login.py`; `bold_engine.py` selbst nutzt nur die Standardlib.)
-2. **Config anlegen:** `bold2lox.cfg.example` → `bold2lox.cfg` kopieren,
-   `trigger_secret` auf einen langen Zufallsstring setzen, `miniserver.ip`
-   eintragen.
-3. **Token holen:** `python3 bold_login.py` – DU gibst Bold-E-Mail/Passwort +
-   E-Mail-Code ein; der Token landet in der Config.
-   ⚠️ Der Legacy-Login erlaubt nur **eine** aktive Session (ggf. wird deine
-   Handy-App abgemeldet). Token laufen ab → bei `401` einfach erneut ausfuehren.
-4. **IDs ermitteln:** `python3 bold_engine.py discover` → `device_id` und
-   `gateway_id` in die Config uebernehmen.
-5. **Test von der Shell:** `python3 bold_engine.py activate` → das Schloss sollte
-   kuppeln. Danach `status` testen.
+## Einrichtung (im LoxBerry-Webmenü → bold2lox)
 
-## Loxone Config – Steuerung (App-Taster → Schloss)
+1. **Einstellungen** öffnen und den **Bold-Access-Token** einfügen.
+2. Seite speichern → das Geräte-Dropdown füllt sich (**Discover** über die
+   Bold-Cloud). Schloss auswählen → `device_id`/`gateway_id` werden gesetzt.
+3. **Trigger-Secret** per Button erzeugen, **Miniserver-IP** + **UDP-Port**
+   eintragen, speichern.
+4. Auf **Übersicht** die fertigen Virtual-Output-URLs kopieren und den
+   „Test: activate now"-Button nutzen.
 
-1. **Virtual Output** anlegen, Adresse: `http://<loxberry-ip>` (Port 80).
-2. Darunter einen **Virtual Output Command**:
-   - *Command for ON:* `/plugins/bold2lox/activate.php?key=DEIN_SECRET&cmd=open`
-   - HTTP-Methode: GET
-3. Diesen Ausgang mit einem **Taster**-Baustein verbinden und als Bedienelement
-   in die App legen. Ein Tastendruck = einmal ausloesen (momentan, kein Dauer-
-   zustand – das entspricht dem Bold-Prinzip).
-4. Optional zweiter Command mit `cmd=close` fuer `remote-deactivation`.
+Der Token wird manuell hinterlegt (bewusste Design-Entscheidung). Läuft er ab,
+liefert die API `401` → in den Einstellungen neuen Token eintragen.
 
-## Loxone Config – Rueckmeldung (Status → App)
+## Loxone Config
 
-1. **Virtual UDP Input** anlegen, gleiche UDP-Portnummer wie in der Config
-   (`miniserver.udp_port`, z. B. 4001).
-2. Darunter **Virtual UDP Input Commands** mit Digitalfilter „Command
-   Recognition":
-   - `bold_battery=\v`      → Batteriestand als Analogwert
-   - `bold_gateway_online=\v` → Bold-Connect erreichbar (0/1)
-   - `bold_action_ok=\v`    → letzte Ausloesung erfolgreich (0/1)
-3. Diese Eingaenge als Status-/Statusbaustein in die App legen.
-4. `bold2lox-daemon` als LoxBerry-Dienst laufen lassen (pollt alle
-   `poll_interval_seconds`) — dann kommt der Status automatisch.
+**Steuerung (App-Taster → Schloss):**
+1. **Virtual Output**, Adresse `http://<loxberry-ip>` (Port 80).
+2. **Virtual Output Command**, *ON:*
+   `/plugins/bold2lox/activate.php?key=SECRET&cmd=open` (GET).
+3. Mit einem **Taster** verbinden und in die App legen. Optional zweiter Command
+   `cmd=close` für `remote-deactivation`.
 
-## Was hier bewusst „ohne Kopfstand" bleibt
+**Rückmeldung (Status → App):**
+1. **Virtual UDP Input** auf dem in den Einstellungen gewählten Port.
+2. Command-Recognition-Einträge:
+   `bold_battery=\v`, `bold_gateway_online=\v`, `bold_action_ok=\v`,
+   `bold_last_action=\v`.
 
-- **Kein persistenter Auf/Zu-Status** — Bold ist ein momentaner Zylinder; die
-  App zeigt „zuletzt ausgeloest" + Batterie/Online, nicht „verriegelt/entriegelt".
-- **Rueckmeldung per UDP** statt LoxBerry::IO/MQTT — versionsunabhaengig und
-  simpel. Wenn du MQTT ohnehin nutzt, kann der Daemon stattdessen dorthin
-  publishen.
-- **Token-Refresh** ist bewusst manuell (`bold_login.py` erneut). Automatischer
-  Refresh liesse sich ergaenzen, sobald der Refresh-Flow deiner Lib-Version
-  feststeht.
+## Aufbau (Plugin-Ordner → Zielpfade auf dem LoxBerry)
 
-## Vor dem Scharfschalten pruefen
+| Repo                                | Ziel (`bold2lox`-Plugin)                                     |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `plugin.cfg`, `*.sh`, `uninstall/`  | Plugin-Root / LoxBerry-Lifecycle                            |
+| `bin/bold_engine.py`                | `$LBPBIN/bold2lox/` – Kern (activate/status/discover)       |
+| `bin/bold2lox-daemon`               | `$LBPBIN/bold2lox/` – Status-Poller (systemd)               |
+| `webfrontend/htmlauth/*`            | Web-UI (Übersicht/Einstellungen/About)                     |
+| `webfrontend/html/activate.php`     | **unauth.** Trigger für den Miniserver                     |
+| `data/settings.json`                | `$LBPDATA/bold2lox/` – Konfig (Token etc., zur Laufzeit)    |
+| `templates/lang/language_en.ini`    | Sprachdatei                                                 |
 
-- Die Methodennamen in `bold_login.py` (`request_verification_token`,
-  `authenticate`) gegen die **installierte** Version von `bold-smart-lock`
-  abgleichen — die Auth-API der Lib hat sich zwischen Versionen geaendert
-  (aeltere Versionen hatten den Login eingebaut, neuere delegieren an eine
-  eigene Token-Beschaffung). Aktivierung/Status-Endpoints sind stabil.
-- `effective-device-permissions`-Antwortformat einmal mit `discover` ansehen und
-  die Feldnamen (`batteryLevel`, `gatewayId`) im Engine ggf. anpassen.
-```
+## Design-Entscheidungen
+
+- **Kein persistenter Auf/Zu-Status** – Bold ist ein momentaner Zylinder; die App
+  zeigt „zuletzt ausgelöst" + Batterie/Online, nicht „verriegelt/entriegelt".
+- **Rückmeldung per rohem UDP** – versionsunabhängig, kein MQTT nötig.
+- **Token manuell** – kein Login-Flow im Plugin (die Bold-Auth-API ist
+  versionsabhängig und liefert nur Single-Session-Tokens).
+
+## Bestätigte Bold-API-Endpoints
+
+`https://api.boldsmartlock.com` –
+`POST /v1/devices/{id}/remote-activation`,
+`POST /v1/devices/{id}/remote-deactivation`,
+`GET /v1/effective-device-permissions`,
+`GET /v1/gateways/{id}/current-status`
+(Quelle: [lwestenberg/bold_smart_lock](https://github.com/lwestenberg/bold_smart_lock)).
+
+## Noch zu verifizieren (an echter API-Antwort)
+
+- Feldnamen `batteryLevel` / `gatewayId` in `effective-device-permissions`
+  einmal per `bold_engine.py discover` gegenchecken und ggf. im Engine anpassen.

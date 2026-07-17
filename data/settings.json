@@ -1,0 +1,16 @@
+{
+  "api_base": "https://api.boldsmartlock.com/v1",
+  "bold": {
+    "access_token": "",
+    "refresh_token": "",
+    "device_id": 0,
+    "gateway_id": 0
+  },
+  "trigger_secret": "",
+  "miniserver": {
+    "ip": "",
+    "udp_port": 4001
+  },
+  "poll_interval_seconds": 300,
+  "http_timeout_seconds": 15
+}

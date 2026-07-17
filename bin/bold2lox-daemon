@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
 """
 bold2lox Status-Daemon – pollt zyklisch den Bold-Gateway-Status und schiebt ihn
-per UDP an den Miniserver (Virtual UDP Input). Von LoxBerry als Dienst gestartet.
-Fuer die Rueckmeldung optional; die reine Steuerung braucht ihn nicht.
+per UDP an den Miniserver (Virtual UDP Input). Von systemd (postroot.sh) als
+Dienst gestartet. Fuer die Rueckmeldung optional; die reine Steuerung braucht
+ihn nicht. Bei fehlendem Token/Gateway wird uebersprungen (kein API-Spam).
 """
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bold_engine  # noqa: E402
 
 
 def main():
     while True:
-        cfg = bold_engine.load_config()
         try:
+            cfg = bold_engine.load_settings()
             bold_engine.cmd_status(cfg)
+            interval = int(cfg.get("poll_interval_seconds", 300))
         except SystemExit as exc:
             print(f"[bold2lox] status-fehler: {exc}", flush=True)
+            interval = 300
         except Exception as exc:  # noqa: BLE001
             print(f"[bold2lox] unerwartet: {exc}", flush=True)
-        time.sleep(int(cfg.get("poll_interval_seconds", 300)))
+            interval = 300
+        time.sleep(max(30, interval))
 
 
 if __name__ == "__main__":

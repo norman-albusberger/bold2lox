@@ -1,5 +1,6 @@
-# Echte Config mit Token NICHT einchecken (nur das .example bleibt versioniert)
-config/bold2lox.cfg
+# Hinweis: data/settings.json ist die AUSGELIEFERTE Vorlage (Token leer) und
+# wird bewusst versioniert. Der echte Token liegt zur Laufzeit unter
+# $LBPDATA/plugins/bold2lox/settings.json auf dem LoxBerry, nicht im Repo.
 
 # Python
 __pycache__/
