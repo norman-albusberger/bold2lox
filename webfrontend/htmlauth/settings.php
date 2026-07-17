@@ -19,12 +19,17 @@ $successMessage = "";
 $errorMessage = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Bei geaenderten Zugangsdaten den zwischengespeicherten Access-Token
+    // verwerfen, damit beim naechsten Aufruf frisch erneuert wird.
     $bold->saveSettings([
         'bold' => [
-            'access_token'  => trim($_POST['access_token'] ?? ''),
-            'refresh_token' => trim($_POST['refresh_token'] ?? ''),
-            'device_id'     => (int)($_POST['device_id'] ?? 0),
-            'gateway_id'    => (int)($_POST['gateway_id'] ?? 0),
+            'client_id'           => trim($_POST['client_id'] ?? ''),
+            'client_secret'       => trim($_POST['client_secret'] ?? ''),
+            'refresh_token'       => trim($_POST['refresh_token'] ?? ''),
+            'access_token'        => '',
+            'access_token_expiry' => 0,
+            'device_id'           => (int)($_POST['device_id'] ?? 0),
+            'gateway_id'          => (int)($_POST['gateway_id'] ?? 0),
         ],
         'trigger_secret' => trim($_POST['trigger_secret'] ?? ''),
         'miniserver' => [
@@ -45,9 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $settings = $bold->readSettings();
 
-// Geraeteliste holen, sofern ein Token gesetzt ist.
+// Geraeteliste holen, sofern Zugangsdaten gesetzt sind (Engine erneuert den
+// Access-Token bei Bedarf selbst).
 $devices = [];
-if (!empty($settings['bold']['access_token'])) {
+if (!empty($settings['bold']['refresh_token'])) {
     $devices = $bold->discover();
 }
 ?>
@@ -64,13 +70,18 @@ if (!empty($settings['bold']['access_token'])) {
 
 <form method="POST" class="ui-content">
     <h2><?= $L['SETTINGS.BOLD_SECTION'] ?></h2>
+    <p class="hint"><?= $L['SETTINGS.CREDS_HELP'] ?></p>
 
     <div class="ui-field-contain">
-        <label for="access_token"><?= $L['SETTINGS.ACCESS_TOKEN'] ?></label>
-        <input type="text" id="access_token" name="access_token"
-               value="<?= htmlspecialchars($settings['bold']['access_token'] ?? '') ?>"
-               placeholder="Bearer-Token">
-        <p class="hint"><?= $L['SETTINGS.ACCESS_TOKEN_HELP'] ?></p>
+        <label for="client_id"><?= $L['SETTINGS.CLIENT_ID'] ?></label>
+        <input type="text" id="client_id" name="client_id"
+               value="<?= htmlspecialchars($settings['bold']['client_id'] ?? '') ?>">
+    </div>
+
+    <div class="ui-field-contain">
+        <label for="client_secret"><?= $L['SETTINGS.CLIENT_SECRET'] ?></label>
+        <input type="password" id="client_secret" name="client_secret"
+               value="<?= htmlspecialchars($settings['bold']['client_secret'] ?? '') ?>">
     </div>
 
     <div class="ui-field-contain">

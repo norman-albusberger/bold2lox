@@ -16,7 +16,7 @@ LBWeb::lbheader($L['COMMON.TITLE'], "https://github.com/norman-albusberger/bold2
 $server_ip = $_SERVER['SERVER_ADDR'] ?? 'LOXBERRY-IP';
 $secret    = $settings['trigger_secret'] ?? '';
 $udpPort   = $settings['miniserver']['udp_port'] ?? 4001;
-$hasToken  = !empty($settings['bold']['access_token']);
+$hasToken  = !empty($settings['bold']['refresh_token']);
 $hasDevice = !empty($settings['bold']['device_id']);
 
 $baseUrl  = "http://{$server_ip}/plugins/bold2lox/activate.php";

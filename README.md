@@ -25,7 +25,9 @@ Voraussetzungen: LoxBerry ≥ 3.0, ein **Bold Connect** im Haus, ein gültiger
 
 ## Einrichtung (im LoxBerry-Webmenü → bold2lox)
 
-1. **Einstellungen** öffnen und den **Bold-Access-Token** einfügen.
+1. **Einstellungen** öffnen und die OAuth2-Zugangsdaten eintragen:
+   **Client-ID**, **Client-Secret** und einen **Refresh-Token** (einmalige
+   Beschaffung siehe unten).
 2. Seite speichern → das Geräte-Dropdown füllt sich (**Discover** über die
    Bold-Cloud). Schloss auswählen → `device_id`/`gateway_id` werden gesetzt.
 3. **Trigger-Secret** per Button erzeugen, **Miniserver-IP** + **UDP-Port**
@@ -33,8 +35,33 @@ Voraussetzungen: LoxBerry ≥ 3.0, ein **Bold Connect** im Haus, ein gültiger
 4. Auf **Übersicht** die fertigen Virtual-Output-URLs kopieren und den
    „Test: activate now"-Button nutzen.
 
-Der Token wird manuell hinterlegt (bewusste Design-Entscheidung). Läuft er ab,
-liefert die API `401` → in den Einstellungen neuen Token eintragen.
+## Authentifizierung (OAuth2, set-and-forget)
+
+Bold nutzt **OAuth2**: ein **kurzlebiger** Access-Token für jeden Aufruf, erneuert
+über einen **langlebigen Refresh-Token**. Das Plugin speichert Access- +
+Refresh-Token und **erneuert den Access-Token automatisch** am Token-Endpoint
+(`grant_type=refresh_token`), sobald er abläuft — deshalb: einmal einrichten,
+dann läuft es verlässlich. Bestätigte Endpoints (aus
+[homeassistant_bold](https://github.com/lwestenberg/homeassistant_bold)):
+
+- Authorize: `https://auth.boldsmartlock.com/`
+- Token/Refresh: `https://api.boldsmartlock.com/v2/oauth/token`
+
+**Einmalige Beschaffung von Client-ID/Secret + Refresh-Token** (der einzige
+manuelle Schritt): Du brauchst OAuth-Client-Credentials von Bold und führst den
+Login-Flow einmal aus, um den ersten Refresh-Token zu erhalten. Praktikable Wege:
+
+- über eine bestehende **Home-Assistant**-Bold-Konfiguration (nutzt exakt diese
+  Endpoints) den Refresh-Token + Client-Credentials übernehmen, oder
+- den OAuth-Authorization-Code-Flow einmal manuell durchlaufen (Authorize-URL →
+  Login → `code` → Tausch am Token-Endpoint).
+
+Wird der Refresh-Token ungültig (Passwortänderung, Widerruf, sehr lange
+Inaktivität), einmal neu autorisieren — systembedingt, wie bei HomeKit/HA.
+Diagnose: `bold_engine.py token` erzwingt einen Refresh und zeigt die Restlaufzeit.
+
+> Ausbaustufe: Ein Bootstrap-Helfer, der den Login-Flow direkt in der Web-UI
+> abwickelt, ist als nächster Schritt vorgesehen (`bold_authorize.py`).
 
 ## Loxone Config
 
@@ -68,8 +95,8 @@ liefert die API `401` → in den Einstellungen neuen Token eintragen.
 - **Kein persistenter Auf/Zu-Status** – Bold ist ein momentaner Zylinder; die App
   zeigt „zuletzt ausgelöst" + Batterie/Online, nicht „verriegelt/entriegelt".
 - **Rückmeldung per rohem UDP** – versionsunabhängig, kein MQTT nötig.
-- **Token manuell** – kein Login-Flow im Plugin (die Bold-Auth-API ist
-  versionsabhängig und liefert nur Single-Session-Tokens).
+- **OAuth2 mit Auto-Refresh** – der Engine erneuert den kurzlebigen Access-Token
+  selbstständig; nur die einmalige Erst-Autorisierung ist manuell.
 
 ## Bestätigte Bold-API-Endpoints
 
@@ -77,10 +104,15 @@ liefert die API `401` → in den Einstellungen neuen Token eintragen.
 `POST /v1/devices/{id}/remote-activation`,
 `POST /v1/devices/{id}/remote-deactivation`,
 `GET /v1/effective-device-permissions`,
-`GET /v1/gateways/{id}/current-status`
-(Quelle: [lwestenberg/bold_smart_lock](https://github.com/lwestenberg/bold_smart_lock)).
+`GET /v1/gateways/{id}/current-status`,
+Token/Refresh `POST /v2/oauth/token`
+(Quellen: [bold_smart_lock](https://github.com/lwestenberg/bold_smart_lock),
+[homeassistant_bold](https://github.com/lwestenberg/homeassistant_bold)).
+Feldnamen `batteryLevel`/`gatewayId` sind über `homeassistant_bold/const.py`
+bestätigt.
 
-## Noch zu verifizieren (an echter API-Antwort)
+## Offener Ausbaupunkt
 
-- Feldnamen `batteryLevel` / `gatewayId` in `effective-device-permissions`
-  einmal per `bold_engine.py discover` gegenchecken und ggf. im Engine anpassen.
+- **Bootstrap-Helfer** (`bold_authorize.py`): den OAuth-Login-Flow direkt aus der
+  Web-UI abwickeln, damit auch die Erst-Autorisierung ohne externe Tools gelingt.
+  Genaue redirect_uri-/Client-Registrierung bei Bold ist dafür noch zu klären.
