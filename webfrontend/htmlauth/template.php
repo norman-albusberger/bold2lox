@@ -1,17 +1,20 @@
 <?php
 /**
- * bold2lox – erzeugt Loxone-Config-Vorlagen (.lxAddon) zum Download.
+ * bold2lox – erzeugt Loxone-Config-Vorlagen (.LxAddOn) zum Download.
  *
  *   template.php?type=vo   Virtueller Ausgang: Schloss auslösen (open/close)
- *   template.php?type=vi   Virtueller UDP-Eingang: Status (online/ausgeloest)
+ *   template.php?type=vi   Virtueller UDP-Eingang: Status
  *
- * Eine .lxAddon-Datei kann laut Loxone nur Eingaenge ODER Ausgaenge enthalten,
- * daher zwei getrennte Dateien. XML-Struktur entspricht dem LoxBerry-
- * TemplateBuilder (der VirtualOut-Zweig des Moduls ist fehlerhaft, daher hier
- * direkt und korrekt erzeugt).
+ * Format nach echten Loxone-Library-Vorlagen: eine .LxAddOn ist ein ZIP aus
+ * <name>.xml + desc.json. Die XML traegt ein <Info templateType=".."/> und ein
+ * UTF-8-BOM. templateType: "3" = Virtueller Ausgang, "2" = Virtueller Eingang.
+ * Eine Datei kann nur Eingaenge ODER Ausgaenge enthalten -> zwei Dateien.
  */
 require_once "loxberry_system.php";
 require_once "Bold.php";
+
+const LX_MIN_VERSION = "14000328";
+const LX_BOM = "\xEF\xBB\xBF";
 
 $bold = new Bold();
 $settings = $bold->readSettings();
@@ -22,41 +25,97 @@ $udpPort = (int)($settings['miniserver']['udp_port'] ?? 4001);
 
 $type = $_GET['type'] ?? 'vo';
 $enc  = ENT_XML1 | ENT_QUOTES;
-
-function attr($s, $enc) { return htmlspecialchars((string)$s, $enc); }
+$a = fn($s) => htmlspecialchars((string)$s, $enc);
 
 if ($type === 'vi') {
-    $filename = 'bold2lox_status.lxAddon';
+    $name = 'bold2lox-status';
+    $templateType = '2';
     $rows = [
         ['Bold Connect online',      'bold_gateway_online=\v'],
         ['Letzte Ausloesung ok',     'bold_action_ok=\v'],
         ['Letzte Ausloesung (Zeit)', 'bold_last_action=\v'],
     ];
-    $xml  = '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
-    $xml .= '<VirtualInUdp Title="Bold Smart Lock Status" Comment="bold2lox" Address="" Port="' . $udpPort . '" >' . "\r\n";
+    $xml  = LX_BOM . '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
+    $xml .= '<VirtualInUdp Title="Bold Smart Lock Status" Comment="bold2lox" Address="" Port="' . $udpPort . '">' . "\r\n";
+    $xml .= "\t" . '<Info templateType="' . $templateType . '" minVersion="' . LX_MIN_VERSION . '"/>' . "\r\n";
     foreach ($rows as $r) {
-        $xml .= "\t" . '<VirtualInUdpCmd Title="' . attr($r[0], $enc) . '" Comment="" Address="" '
-              . 'Check="' . attr($r[1], $enc) . '" Signed="true" Analog="true" '
+        $xml .= "\t" . '<VirtualInUdpCmd Title="' . $a($r[0]) . '" Comment="" Address="" '
+              . 'Check="' . $a($r[1]) . '" Signed="true" Analog="true" '
               . 'SourceValLow="0" DestValLow="0" SourceValHigh="100" DestValHigh="100" '
               . 'DefVal="0" MinVal="-2147483647" MaxVal="2147483647"/>' . "\r\n";
     }
     $xml .= '</VirtualInUdp>' . "\r\n";
 } else {
-    $filename = 'bold2lox_output.lxAddon';
-    $base    = 'http://' . $ip;
+    $name = 'bold2lox-output';
+    $templateType = '3';
     $cmdOpen  = '/plugins/bold2lox/activate.php?key=' . rawurlencode($secret) . '&cmd=open';
     $cmdClose = '/plugins/bold2lox/activate.php?key=' . rawurlencode($secret) . '&cmd=close';
-    $xml  = '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
-    $xml .= '<VirtualOut Title="Bold Smart Lock" Comment="bold2lox" Address="' . attr($base, $enc) . '" '
-          . 'CmdInit="" CloseAfterSend="true" CmdSep=";" >' . "\r\n";
-    $xml .= "\t" . '<VirtualOutCmd Title="Hauseingang oeffnen" Comment="" '
-          . 'CmdOnMethod="GET" CmdOn="' . attr($cmdOpen, $enc) . '" CmdOnHTTP="" CmdOnPost="" '
-          . 'CmdOffMethod="GET" CmdOff="' . attr($cmdClose, $enc) . '" CmdOffHTTP="" CmdOffPost="" '
+    $xml  = LX_BOM . '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
+    $xml .= '<VirtualOut Title="Bold Smart Lock" Comment="bold2lox" Address="' . $a("http://$ip") . '" '
+          . 'CmdInit="" CloseAfterSend="true" CmdSep="">' . "\r\n";
+    $xml .= "\t" . '<Info templateType="' . $templateType . '" minVersion="' . LX_MIN_VERSION . '"/>' . "\r\n";
+    $xml .= "\t" . '<VirtualOutCmd Title="Hauseingang oeffnen" Comment="bold2lox" '
+          . 'CmdOnMethod="GET" CmdOffMethod="GET" CmdOn="' . $a($cmdOpen) . '" CmdOnHTTP="" CmdOnPost="" '
+          . 'CmdOff="' . $a($cmdClose) . '" CmdOffHTTP="" CmdOffPost="" CmdAnswer="" '
           . 'Analog="false" Repeat="0" RepeatRate="0"/>' . "\r\n";
     $xml .= '</VirtualOut>' . "\r\n";
 }
 
-header('Content-Type: application/xml; charset=utf-8');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
-header('Content-Length: ' . strlen($xml));
-echo $xml;
+$desc = json_encode([
+    "type" => "template",
+    "name" => $name,
+    "uuid" => bold_uuid4(),
+    "version" => "1.0.0",
+    "id" => $name,
+    "file" => "$name.xml",
+    "templateType" => $templateType,
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+$archive = zip_store([
+    "$name.xml" => $xml,
+    "desc.json" => $desc,
+]);
+
+header('Content-Type: application/octet-stream');
+header('Content-Disposition: attachment; filename="' . $name . '.LxAddOn"');
+header('Content-Length: ' . strlen($archive));
+echo $archive;
+
+
+/** Minimaler ZIP-Writer (Store, ohne ext-zip). $files = [name => inhalt]. */
+function zip_store(array $files): string
+{
+    $local = '';
+    $central = '';
+    $offset = 0;
+    $count = 0;
+    foreach ($files as $fname => $data) {
+        $crc = crc32($data);
+        $len = strlen($data);
+        $lh = "PK\x03\x04" . pack('v', 20) . pack('v', 0) . pack('v', 0)
+            . pack('v', 0) . pack('v', 0)
+            . pack('V', $crc) . pack('V', $len) . pack('V', $len)
+            . pack('v', strlen($fname)) . pack('v', 0) . $fname;
+        $local .= $lh . $data;
+        $central .= "PK\x01\x02" . pack('v', 20) . pack('v', 20)
+            . pack('v', 0) . pack('v', 0) . pack('v', 0) . pack('v', 0)
+            . pack('V', $crc) . pack('V', $len) . pack('V', $len)
+            . pack('v', strlen($fname)) . pack('v', 0) . pack('v', 0)
+            . pack('v', 0) . pack('v', 0) . pack('V', 0)
+            . pack('V', $offset) . $fname;
+        $offset += strlen($lh) + $len;
+        $count++;
+    }
+    $eocd = "PK\x05\x06" . pack('v', 0) . pack('v', 0)
+        . pack('v', $count) . pack('v', $count)
+        . pack('V', strlen($central)) . pack('V', strlen($local)) . pack('v', 0);
+    return $local . $central . $eocd;
+}
+
+function bold_uuid4(): string
+{
+    $d = random_bytes(16);
+    $d[6] = chr((ord($d[6]) & 0x0f) | 0x40);
+    $d[8] = chr((ord($d[8]) & 0x3f) | 0x80);
+    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
+}
