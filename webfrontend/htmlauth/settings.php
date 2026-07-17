@@ -37,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'udp_port' => (int)($_POST['udp_port'] ?? 4001),
         ],
         'poll_interval_seconds' => (int)($_POST['poll_interval'] ?? 300),
+        'auth_user_agent' => trim($_POST['auth_user_agent'] ?? ''),
     ]);
     $successMessage = $L['COMMON.SAVED'];
 
@@ -150,6 +151,13 @@ if (!empty($settings['bold']['refresh_token'])) {
         <label for="poll_interval"><?= $L['SETTINGS.POLL'] ?></label>
         <input type="number" id="poll_interval" name="poll_interval"
                value="<?= htmlspecialchars((string)($settings['poll_interval_seconds'] ?? 300)) ?>">
+    </div>
+
+    <div class="ui-field-contain">
+        <label for="auth_user_agent"><?= $L['SETTINGS.USER_AGENT'] ?></label>
+        <input type="text" id="auth_user_agent" name="auth_user_agent"
+               value="<?= htmlspecialchars($settings['auth_user_agent'] ?? '') ?>">
+        <p class="hint"><?= $L['SETTINGS.USER_AGENT_HELP'] ?></p>
     </div>
 
     <button type="submit" class="ui-btn ui-btn-b ui-corner-all"><?= $L['COMMON.SAVE'] ?></button>

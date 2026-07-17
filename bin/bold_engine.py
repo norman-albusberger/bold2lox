@@ -77,6 +77,22 @@ def _short(text, limit=400):
     return text if len(text) <= limit else text[:limit] + "…"
 
 
+# Bold weist Requests ohne erkennbare App-Version mit "OldAppVersion" ab. Der
+# Default-User-Agent von urllib (Python-urllib/x) traegt keine Version. Wir setzen
+# daher einen app-aehnlichen User-Agent, in settings.json ueberschreibbar
+# ("auth_user_agent"), plus optionale Zusatz-Header ("auth_headers").
+DEFAULT_USER_AGENT = "Bold/4.3.0 (Android 13)"
+
+
+def _with_common_headers(cfg, headers):
+    """Ergaenzt User-Agent + konfigurierte Zusatz-Header (fuer alle Bold-Calls)."""
+    merged = dict(headers)
+    merged.setdefault("User-Agent", cfg.get("auth_user_agent") or DEFAULT_USER_AGENT)
+    for key, val in (cfg.get("auth_headers") or {}).items():
+        merged[key] = val
+    return merged
+
+
 def _raw_request(url, method, headers, data, timeout):
     """Roher HTTP-Aufruf, der Fehlerbodies zurueckgibt statt zu werfen –
     damit der Login-Wizard Bold-Fehlermeldungen anzeigen kann."""
@@ -116,8 +132,11 @@ def _refresh_access_token(cfg):
         "client_secret": bold["client_secret"],
     }).encode("utf-8")
     req = urllib.request.Request(token_url, data=data, method="POST")
-    req.add_header("Content-Type", "application/x-www-form-urlencoded")
-    req.add_header("Accept", "application/json")
+    for key, val in _with_common_headers(cfg, {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+    }).items():
+        req.add_header(key, val)
     try:
         with urllib.request.urlopen(req, timeout=cfg.get("http_timeout_seconds", 15)) as resp:
             payload = json.loads(resp.read().decode("utf-8") or "{}")
@@ -162,8 +181,11 @@ def get_access_token(cfg, force=False):
 def api_request(cfg, method, path, _retry=True):
     url = cfg.get("api_base", DEFAULT_API_BASE).rstrip("/") + path
     req = urllib.request.Request(url, method=method)
-    req.add_header("Authorization", "Bearer " + get_access_token(cfg))
-    req.add_header("Accept", "application/json")
+    for key, val in _with_common_headers(cfg, {
+        "Authorization": "Bearer " + get_access_token(cfg),
+        "Accept": "application/json",
+    }).items():
+        req.add_header(key, val)
     try:
         with urllib.request.urlopen(req, timeout=cfg.get("http_timeout_seconds", 15)) as resp:
             body = resp.read().decode("utf-8") or "{}"
@@ -324,7 +346,8 @@ def cmd_login_request(cfg, payload):
         "destination": payload.get("destination", "Phone"),
     }).encode("utf-8")
     st, txt = _raw_request(url, "POST",
-                           {"Content-Type": "application/json", "Accept": "application/json"},
+                           _with_common_headers(cfg, {"Content-Type": "application/json",
+                                                      "Accept": "application/json"}),
                            body, cfg.get("http_timeout_seconds", 15))
     ok = 200 <= st < 300
     print(json.dumps({"ok": ok, "status": st, "detail": "" if ok else _short(txt)}))
@@ -339,7 +362,8 @@ def cmd_login_verify(cfg, payload):
         "verificationCode": payload.get("code", ""),
     }).encode("utf-8")
     st, txt = _raw_request(url, "POST",
-                           {"Content-Type": "application/json", "Accept": "application/json"},
+                           _with_common_headers(cfg, {"Content-Type": "application/json",
+                                                      "Accept": "application/json"}),
                            body, cfg.get("http_timeout_seconds", 15))
     if not (200 <= st < 300):
         print(json.dumps({"ok": False, "status": st, "detail": _short(txt)}))
@@ -361,8 +385,8 @@ def cmd_login_auth(cfg, payload):
         "client_secret": LEGACY_CLIENT_SECRET,
     }).encode("utf-8")
     st, txt = _raw_request(url, "POST",
-                           {"Content-Type": "application/x-www-form-urlencoded",
-                            "Accept": "application/json"},
+                           _with_common_headers(cfg, {"Content-Type": "application/x-www-form-urlencoded",
+                                                      "Accept": "application/json"}),
                            form, cfg.get("http_timeout_seconds", 15))
     if not (200 <= st < 300):
         print(json.dumps({"ok": False, "status": st, "detail": _short(txt)}))
