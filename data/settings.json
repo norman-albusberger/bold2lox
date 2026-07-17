@@ -2,7 +2,7 @@
   "api_base": "https://api.boldsmartlock.com/v1",
   "token_url": "https://api.boldsmartlock.com/v2/oauth/token",
   "auth_base": "https://api.boldsmartlock.com/v2",
-  "auth_user_agent": "Bold/4.3.0 (Android 13)",
+  "auth_user_agent": "okhttp/4.9.2",
   "auth_headers": {},
   "bold": {
     "client_id": "",

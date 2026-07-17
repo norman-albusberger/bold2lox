@@ -77,11 +77,13 @@ def _short(text, limit=400):
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-# Bold weist Requests ohne erkennbare App-Version mit "OldAppVersion" ab. Der
-# Default-User-Agent von urllib (Python-urllib/x) traegt keine Version. Wir setzen
-# daher einen app-aehnlichen User-Agent, in settings.json ueberschreibbar
-# ("auth_user_agent"), plus optionale Zusatz-Header ("auth_headers").
-DEFAULT_USER_AGENT = "Bold/4.3.0 (Android 13)"
+# Bold weist den Password-Grant mit "OldAppVersion" ab, wenn der Request nicht wie
+# die Bold-App aussieht. Die App nutzt den HTTP-Client OkHttp; dieser User-Agent
+# ist der einzige Unterschied zu einem sonst identischen, funktionierenden Login
+# (Quelle: koenieee/ESP32-BoldlockBluetoothImplementation). urllib sendet sonst
+# "Python-urllib/x". Ueberschreibbar via settings.json ("auth_user_agent"), plus
+# optionale Zusatz-Header ("auth_headers").
+DEFAULT_USER_AGENT = "okhttp/4.9.2"
 
 
 def _with_common_headers(cfg, headers):
