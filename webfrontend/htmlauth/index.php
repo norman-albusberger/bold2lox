@@ -51,7 +51,14 @@ $closeUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=close";
     </div>
 
     <p class="hint"><?= $L['OVERVIEW.UDP_HINT'] ?> <strong><?= htmlspecialchars((string)$udpPort) ?></strong>
-        (<code>bold_battery=\v</code>, <code>bold_gateway_online=\v</code>, <code>bold_action_ok=\v</code>).</p>
+        (<code>bold_gateway_online=\v</code>, <code>bold_action_ok=\v</code>, <code>bold_last_action=\v</code>).</p>
+
+    <h2><?= $L['OVERVIEW.TEMPLATES'] ?></h2>
+    <p class="hint"><?= $L['OVERVIEW.TEMPLATES_HELP'] ?></p>
+    <p>
+        <a href="template.php?type=vo" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VO'] ?></a>
+        <a href="template.php?type=vi" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VI'] ?></a>
+    </p>
 
     <h2><?= $L['COMMON.TEST'] ?></h2>
     <button id="testOpen" class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"

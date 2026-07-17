@@ -76,18 +76,27 @@ erzwingt einen Refresh und zeigt die Restlaufzeit.
 
 ## Loxone Config
 
-**Steuerung (App-Taster → Schloss):**
+**Am einfachsten – fertige `.lxAddon`-Vorlagen** (Tab **Übersicht** → Downloads),
+in Loxone Config über **„Gerätevorlagen → Vorlage importieren…"** einspielen. Sie
+sind bereits mit deiner IP, dem Trigger-Secret und dem UDP-Port gefüllt (also
+vorher in den Einstellungen setzen). Zwei Dateien, weil eine `.lxAddon` nur
+Eingänge **oder** Ausgänge enthalten darf:
+- `bold2lox_output.lxAddon` – Virtueller Ausgang: Schloss auslösen (open/close)
+- `bold2lox_status.lxAddon` – Virtueller UDP-Eingang: Status
+
+**Oder von Hand:**
+
+*Steuerung (App-Taster → Schloss):*
 1. **Virtual Output**, Adresse `http://<loxberry-ip>` (Port 80).
 2. **Virtual Output Command**, *ON:*
    `/plugins/bold2lox/activate.php?key=SECRET&cmd=open` (GET).
-3. Mit einem **Taster** verbinden und in die App legen. Optional zweiter Command
+3. Mit einem **Taster** verbinden und in die App legen. Optional *OFF:*
    `cmd=close` für `remote-deactivation`.
 
-**Rückmeldung (Status → App):**
+*Rückmeldung (Status → App):*
 1. **Virtual UDP Input** auf dem in den Einstellungen gewählten Port.
 2. Command-Recognition-Einträge:
-   `bold_battery=\v`, `bold_gateway_online=\v`, `bold_action_ok=\v`,
-   `bold_last_action=\v`.
+   `bold_gateway_online=\v`, `bold_action_ok=\v`, `bold_last_action=\v`.
 
 ## Aufbau (Plugin-Ordner → Zielpfade auf dem LoxBerry)
 
