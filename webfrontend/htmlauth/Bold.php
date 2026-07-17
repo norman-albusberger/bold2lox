@@ -76,6 +76,36 @@ class Bold
         return is_array($data) && isset($data["devices"]) ? $data["devices"] : [];
     }
 
+    /**
+     * Ruft den Engine mit einem JSON-Payload ueber stdin auf (fuer den Login –
+     * so landen Telefonnummer/Passwort nicht in der Prozessliste).
+     *
+     * @return array{returnCode:int, output:string, stderr:string}
+     */
+    public function runEngineStdin(string $action, array $payload): array
+    {
+        $cmd = 'BOLD2LOX_SETTINGS=' . escapeshellarg($this->settingsPath)
+            . ' /usr/bin/python3 ' . escapeshellarg($this->enginePath)
+            . ' ' . escapeshellarg($action);
+        $descriptors = [
+            0 => ["pipe", "r"],
+            1 => ["pipe", "w"],
+            2 => ["pipe", "w"],
+        ];
+        $proc = proc_open($cmd, $descriptors, $pipes);
+        if (!is_resource($proc)) {
+            return ["returnCode" => 1, "output" => "", "stderr" => "proc_open fehlgeschlagen"];
+        }
+        fwrite($pipes[0], json_encode($payload));
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $err = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $rc = proc_close($proc);
+        return ["returnCode" => $rc, "output" => trim($out), "stderr" => trim($err)];
+    }
+
     public function restartService(string $serviceName = "bold2lox.service"): array
     {
         $output = [];

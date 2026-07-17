@@ -6,11 +6,16 @@ $navbar = [
         'active' => false
     ],
     2 => [
+        'Name' => $L['COMMON.LOGIN'],
+        'URL' => 'login.php',
+        'active' => false
+    ],
+    3 => [
         'Name' => $L['COMMON.SETTINGS'],
         'URL' => 'settings.php',
         'active' => false
     ],
-    3 => [
+    4 => [
         'Name' => $L['COMMON.ABOUT'],
         'URL' => 'about.php',
         'active' => false

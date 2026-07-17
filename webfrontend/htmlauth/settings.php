@@ -12,7 +12,7 @@ $htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=1'
 $bold = new Bold();
 
 require_once "navigation.php";
-$navbar[2]['active'] = true;
+$navbar[3]['active'] = true;
 LBWeb::lbheader($L['COMMON.TITLE'], "https://github.com/norman-albusberger/bold2lox", "help.html");
 
 $successMessage = "";
@@ -71,6 +71,7 @@ if (!empty($settings['bold']['refresh_token'])) {
 <form method="POST" class="ui-content">
     <h2><?= $L['SETTINGS.BOLD_SECTION'] ?></h2>
     <p class="hint"><?= $L['SETTINGS.CREDS_HELP'] ?></p>
+    <p><a href="login.php" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline">➜ <?= $L['COMMON.LOGIN'] ?></a></p>
 
     <div class="ui-field-contain">
         <label for="client_id"><?= $L['SETTINGS.CLIENT_ID'] ?></label>

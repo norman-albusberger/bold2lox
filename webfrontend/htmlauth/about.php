@@ -6,7 +6,7 @@ $L = LBSystem::readlanguage("language.ini");
 $htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=1'>";
 
 require_once "navigation.php";
-$navbar[3]['active'] = true;
+$navbar[4]['active'] = true;
 LBWeb::lbheader($L['COMMON.TITLE'], "https://github.com/norman-albusberger/bold2lox", "help.html");
 ?>
 

@@ -26,6 +26,11 @@ Aufruf:
   bold_engine.py token               # Token erneuern/pruefen (Diagnose)
   bold_engine.py diagnose            # Schritt-fuer-Schritt-Check (Token/Geraete/Gateway)
 
+Bootstrap-Login (Payload als JSON ueber stdin, damit nichts in der Prozessliste steht):
+  echo '{"phone":"+49…","destination":"Phone"}'      | bold_engine.py login-request
+  echo '{"phone":"+49…","code":"123456"}'            | bold_engine.py login-verify
+  echo '{"phone":"+49…","password":"…","mfa_token":"…"}' | bold_engine.py login-auth
+
 Konfiguration: settings.json (Pfad via $BOLD2LOX_SETTINGS oder Standardpfad).
 """
 import json
@@ -44,6 +49,12 @@ SETTINGS_PATH = os.environ.get(
 
 DEFAULT_TOKEN_URL = "https://api.boldsmartlock.com/v2/oauth/token"
 DEFAULT_API_BASE = "https://api.boldsmartlock.com/v1"
+DEFAULT_AUTH_BASE = "https://api.boldsmartlock.com/v2"
+# Feste Client-Credentials der Bold-App fuer den Legacy-Login (username/password +
+# SMS/E-Mail-Code). Oeffentlich bekannt/aus der App; erlaubt Bootstrap ohne eigene
+# OAuth-Registrierung. Quelle: StefanNienhuis/homebridge-bold.
+LEGACY_CLIENT_ID = "BoldApp"
+LEGACY_CLIENT_SECRET = "pgJFgnGB87f9ednFiiHygCbf"
 # Sicherheitspuffer: Token vor Ablauf erneuern.
 EXPIRY_SKEW_SECONDS = 60
 
@@ -59,6 +70,26 @@ def save_settings(cfg):
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(cfg, fh, indent=2, ensure_ascii=False)
     os.replace(tmp, SETTINGS_PATH)
+
+
+def _short(text, limit=400):
+    text = (text or "").strip()
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _raw_request(url, method, headers, data, timeout):
+    """Roher HTTP-Aufruf, der Fehlerbodies zurueckgibt statt zu werfen –
+    damit der Login-Wizard Bold-Fehlermeldungen anzeigen kann."""
+    req = urllib.request.Request(url, data=data, method=method)
+    for key, val in headers.items():
+        req.add_header(key, val)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", "replace")
+    except urllib.error.URLError as exc:
+        return 0, json.dumps({"error": str(exc.reason)})
 
 
 # --------------------------------------------------------------------------- #
@@ -280,12 +311,93 @@ def cmd_diagnose(cfg):
     return 0 if ok_all else 1
 
 
+# --------------------------------------------------------------------------- #
+# Bootstrap-Login (Legacy: Telefonnummer + Code + Passwort -> Tokens)
+# --------------------------------------------------------------------------- #
+
+def cmd_login_request(cfg, payload):
+    """Schritt 1: Verifizierungscode anfordern (SMS oder E-Mail)."""
+    url = cfg.get("auth_base", DEFAULT_AUTH_BASE).rstrip("/") + "/verification/request-code"
+    body = json.dumps({
+        "phoneNumber": payload.get("phone", ""),
+        "language": payload.get("language", "en"),
+        "destination": payload.get("destination", "Phone"),
+    }).encode("utf-8")
+    st, txt = _raw_request(url, "POST",
+                           {"Content-Type": "application/json", "Accept": "application/json"},
+                           body, cfg.get("http_timeout_seconds", 15))
+    ok = 200 <= st < 300
+    print(json.dumps({"ok": ok, "status": st, "detail": "" if ok else _short(txt)}))
+    return 0 if ok else 1
+
+
+def cmd_login_verify(cfg, payload):
+    """Schritt 2: Code pruefen -> verificationToken (MFA-Token)."""
+    url = cfg.get("auth_base", DEFAULT_AUTH_BASE).rstrip("/") + "/verification/verify-code"
+    body = json.dumps({
+        "phoneNumber": payload.get("phone", ""),
+        "verificationCode": payload.get("code", ""),
+    }).encode("utf-8")
+    st, txt = _raw_request(url, "POST",
+                           {"Content-Type": "application/json", "Accept": "application/json"},
+                           body, cfg.get("http_timeout_seconds", 15))
+    if not (200 <= st < 300):
+        print(json.dumps({"ok": False, "status": st, "detail": _short(txt)}))
+        return 1
+    token = (json.loads(txt or "{}") or {}).get("verificationToken", "")
+    print(json.dumps({"ok": True, "verificationToken": token}))
+    return 0
+
+
+def cmd_login_auth(cfg, payload):
+    """Schritt 3: Passwort + MFA-Token -> access/refresh, in settings.json ablegen."""
+    url = cfg.get("token_url", DEFAULT_TOKEN_URL)
+    form = urllib.parse.urlencode({
+        "grant_type": "password",
+        "username": payload.get("phone", ""),
+        "password": payload.get("password", ""),
+        "mfa_token": payload.get("mfa_token", ""),
+        "client_id": LEGACY_CLIENT_ID,
+        "client_secret": LEGACY_CLIENT_SECRET,
+    }).encode("utf-8")
+    st, txt = _raw_request(url, "POST",
+                           {"Content-Type": "application/x-www-form-urlencoded",
+                            "Accept": "application/json"},
+                           form, cfg.get("http_timeout_seconds", 15))
+    if not (200 <= st < 300):
+        print(json.dumps({"ok": False, "status": st, "detail": _short(txt)}))
+        return 1
+    body = json.loads(txt or "{}") or {}
+    if not body.get("access_token") or not body.get("refresh_token"):
+        print(json.dumps({"ok": False, "detail": "keine Tokens erhalten: " + _short(txt)}))
+        return 1
+    bold = _bold(cfg)
+    bold["client_id"] = LEGACY_CLIENT_ID
+    bold["client_secret"] = LEGACY_CLIENT_SECRET
+    bold["refresh_token"] = body["refresh_token"]
+    bold["access_token"] = body["access_token"]
+    bold["access_token_expiry"] = int(time.time()) + int(body.get("expires_in", 3600))
+    save_settings(cfg)
+    print(json.dumps({"ok": True}))
+    return 0
+
+
 def main(argv):
     action = argv[1] if len(argv) > 1 else ""
-    if action not in {"activate", "deactivate", "status", "discover", "token", "diagnose"}:
+    login_actions = {"login-request", "login-verify", "login-auth"}
+    known = {"activate", "deactivate", "status", "discover", "token", "diagnose"} | login_actions
+    if action not in known:
         print(__doc__)
         return 2
     cfg = load_settings()
+    if action in login_actions:
+        payload = json.load(sys.stdin)  # sensible Werte kommen ueber stdin, nicht argv
+        if action == "login-request":
+            return cmd_login_request(cfg, payload)
+        if action == "login-verify":
+            return cmd_login_verify(cfg, payload)
+        if action == "login-auth":
+            return cmd_login_auth(cfg, payload)
     if action == "activate":
         return cmd_activate(cfg)
     if action == "deactivate":
