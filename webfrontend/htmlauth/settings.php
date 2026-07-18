@@ -7,7 +7,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 $L = LBSystem::readlanguage("language.ini");
-$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=4'>";
+$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=5'>";
 
 $bold = new Bold();
 
@@ -165,5 +165,5 @@ $val = fn($key, $default = '') => htmlspecialchars((string)($settings['bold'][$k
     <button type="submit" class="ui-btn ui-btn-b ui-corner-all"><?= $L['COMMON.SAVE'] ?></button>
 </form>
 
-<script src='assets/index.js?v=3'></script>
+<script src='assets/index.js?v=4'></script>
 <?php LBWeb::lbfooter(); ?>

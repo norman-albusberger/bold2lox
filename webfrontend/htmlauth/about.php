@@ -3,7 +3,7 @@ require_once "loxberry_system.php";
 require_once "loxberry_web.php";
 
 $L = LBSystem::readlanguage("language.ini");
-$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=4'>";
+$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=5'>";
 
 require_once "navigation.php";
 $navbar[4]['active'] = true;

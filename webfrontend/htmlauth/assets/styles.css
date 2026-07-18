@@ -70,11 +70,13 @@
     background: rgba(0, 0, 0, 0.04);
     border-left: 5px solid #999;
 }
-.diag-step.ok  { border-left-color: #2e7d32; }
-.diag-step.bad { border-left-color: #c62828; }
+.diag-step.ok   { border-left-color: #2e7d32; }
+.diag-step.bad  { border-left-color: #c62828; }
+.diag-step.skip { border-left-color: #9e9e9e; opacity: 0.85; }
 .diag-step .mark { font-weight: bold; }
-.diag-step.ok  .mark { color: #2e7d32; }
-.diag-step.bad .mark { color: #c62828; }
+.diag-step.ok   .mark { color: #2e7d32; }
+.diag-step.bad  .mark { color: #c62828; }
+.diag-step.skip .mark { color: #9e9e9e; }
 .diag-step .detail {
     opacity: 0.85;
     font-size: 0.88em;

@@ -60,9 +60,12 @@
         box.innerHTML = "";
         if (data && Array.isArray(data.steps)) {
             data.steps.forEach(function (s) {
+                // "skipped" = optional check that could not run - neutral, not a fault.
+                var cls = s.skipped ? "skip" : (s.ok ? "ok" : "bad");
+                var mark = s.skipped ? "–" : (s.ok ? "✓" : "✗");
                 var row = document.createElement("div");
-                row.className = "diag-step " + (s.ok ? "ok" : "bad");
-                row.innerHTML = "<span class='mark'>" + (s.ok ? "✓" : "✗") +
+                row.className = "diag-step " + cls;
+                row.innerHTML = "<span class='mark'>" + mark +
                     "</span><strong>" + s.name + "</strong><span class='detail'>" +
                     (s.detail || "") + "</span>";
                 box.appendChild(row);

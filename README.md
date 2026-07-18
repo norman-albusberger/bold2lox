@@ -29,13 +29,21 @@ LoxBerry checks `release.cfg` in this repo and offers the new version when its
 choose the update mode per plugin (notify only, install releases, or also
 prereleases).
 
-**Your configuration survives updates.** LoxBerry copies `data/*` over the plugin's
-data folder on every update, so the shipped file is deliberately named
-`settings.default.json` – the live `settings.json` is never overwritten. On install
-and update, `postinstall.sh` makes sure `settings.json` exists and gains any **new**
-default keys, while keeping every value you configured (tokens, device/gateway id,
-trigger secret, Miniserver IP). A corrupt settings file is kept as
-`settings.json.broken` instead of being silently replaced.
+**Your configuration survives updates.** This needs care, because LoxBerry's installer
+calls `purge_installation()` on every update, which does `rm -rf
+<lbhome>/data/plugins/<plugin>/` – the **entire plugin data folder, including
+`settings.json`, is deleted** before the new `data/*` is copied in. Shipping a
+default file is therefore not enough. So:
+
+- `preupgrade.sh` runs **before** that purge and backs the live `settings.json` up to
+  `<lbhome>/data/system/bold2lox_settings_backup.json` (outside every purged folder).
+  If the backup cannot be written it aborts the update rather than losing your setup.
+- `postinstall.sh` runs after the new `data/*` was copied and restores the backup,
+  merging in any **new** default keys from `settings.default.json`. Your values always
+  win; the backup is removed only after a successful restore.
+
+That keeps tokens, device/gateway id, trigger secret and Miniserver IP – so you don't
+have to rebuild the Virtual Output in Loxone Config after every update.
 
 Releasing a new version: bump `VERSION` in `plugin.cfg` **and** `release.cfg`, point
 `ARCHIVEURL` at the new tag, then create that git tag / GitHub release.
@@ -122,7 +130,14 @@ never sets – `bold_engine.py deactivate` exists for completeness only.)
 | ----- | ------- |
 | `bold_action_ok=\v` | `1` = the last trigger was accepted by Bold, `0` = it failed |
 | `bold_last_action=\v` | timestamp of the last trigger, **in Loxone time** (seconds since 2009-01-01, so you can feed it straight into a status block) |
-| `bold_gateway_online=\v` | `1` = Bold Connect reachable, `0` = offline (polled every `poll_interval_seconds`) |
+| `bold_gateway_online=\v` | `1` = Bold Connect reachable, `0` = offline (polled every `poll_interval_seconds`) – **optional**, see below |
+
+The **gateway id is optional**. Discovery only finds the Bold Connect if your Bold user
+has access to it – a dedicated plugin user that was merely invited to the *lock*
+usually has not, so the id stays `0` and `/gateways/<id>/current-status` answers `403`.
+That is not an error: **triggering the lock works regardless**, only the online
+feedback is unavailable, and the diagnosis marks that step as skipped rather than
+failed. Invite your plugin user to the Bold Connect if you want that status.
 
 Bold's cloud offers no door/state events, so there is no "door was opened" signal –
 only whether *your* trigger succeeded and whether the Bold Connect is reachable.

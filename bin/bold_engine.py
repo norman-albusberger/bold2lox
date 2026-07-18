@@ -321,6 +321,31 @@ def _fetch_permissions(cfg):
                        base=cfg.get("api_base_v2", DEFAULT_API_BASE_V2))
 
 
+def gateway_status(cfg):
+    """Check the Bold Connect. Returns (state, detail) with state in
+    'online' | 'offline' | 'unavailable'.
+
+    'unavailable' means the check cannot be performed (no gateway id, or the Bold
+    user has no access to the gateway). That is NOT a fault: triggering the lock
+    works regardless - only the online feedback is missing.
+    """
+    gw_id = _gateway_id(cfg)
+    if not gw_id:
+        return "unavailable", ("optional - no gateway id. Discover only finds the Bold "
+                               "Connect if your Bold user has access to it.")
+    try:
+        _, gw = api_request(cfg, "GET", f"/gateways/{gw_id}/current-status")
+    except SystemExit as exc:
+        msg = str(exc)
+        if "HTTP 403" in msg:
+            return "unavailable", (f"optional - no permission for gateway {gw_id}. Invite "
+                                   "your Bold user to the Bold Connect to get this status.")
+        return "unavailable", f"optional - not available: {_short(msg, 160)}"
+    if isinstance(gw, dict) and _is_error_code(gw.get("errorCode")):
+        return "offline", "offline / unreachable: " + json.dumps(gw)
+    return "online", "online"
+
+
 def _detect_gateway_id(cfg):
     """Find the gateway (Bold Connect, type 2) in the permissions."""
     _, perms = _fetch_permissions(cfg)
@@ -331,11 +356,15 @@ def _detect_gateway_id(cfg):
 
 
 def cmd_status(cfg):
-    if not _bold(cfg).get("refresh_token") or not _gateway_id(cfg):
-        print(json.dumps({"skipped": "access/gateway missing"}))
+    if not _bold(cfg).get("refresh_token"):
+        print(json.dumps({"skipped": "no access configured"}))
         return 0
-    _, gw = api_request(cfg, "GET", f"/gateways/{_gateway_id(cfg)}/current-status")
-    online = 1 if not (isinstance(gw, dict) and gw.get("errorCode")) else 0
+    state, detail = gateway_status(cfg)
+    if state == "unavailable":
+        # Optional feature - stay quiet instead of spamming the daemon log.
+        print(json.dumps({"skipped": detail}))
+        return 0
+    online = 1 if state == "online" else 0
     send_udp(cfg, [f"bold_gateway_online={online}"])
     print(json.dumps({"pushed": [f"bold_gateway_online={online}"]}))
     return 0
@@ -396,16 +425,13 @@ def cmd_diagnose(cfg):
     except SystemExit as exc:
         steps.append({"name": "Device list", "ok": False, "detail": str(exc)})
 
-    # 3) is the Bold Connect reachable?
+    # 3) is the Bold Connect reachable? Optional - triggering works without it.
     try:
-        gw_id = _gateway_id(cfg)
-        if not gw_id:
-            steps.append({"name": "Bold Connect", "ok": False, "detail": "no gateway_id set"})
+        state, detail = gateway_status(cfg)
+        if state == "unavailable":
+            steps.append({"name": "Bold Connect", "ok": True, "skipped": True, "detail": detail})
         else:
-            _, gw = api_request(cfg, "GET", f"/gateways/{gw_id}/current-status")
-            online = not (isinstance(gw, dict) and gw.get("errorCode"))
-            steps.append({"name": "Bold Connect", "ok": bool(online),
-                          "detail": "online" if online else "offline / unreachable: " + json.dumps(gw)})
+            steps.append({"name": "Bold Connect", "ok": state == "online", "detail": detail})
     except SystemExit as exc:
         steps.append({"name": "Bold Connect", "ok": False, "detail": str(exc)})
 
