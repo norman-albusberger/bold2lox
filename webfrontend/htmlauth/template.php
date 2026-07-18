@@ -32,7 +32,7 @@ $a = fn($s) => htmlspecialchars((string)$s, $enc);
 if ($type !== 'vi' && $secret === '') {
     http_response_code(409);
     header('Content-Type: text/plain; charset=utf-8');
-    echo 'Bitte zuerst das Trigger-Secret in den Einstellungen setzen.';
+    echo 'Set the trigger secret in Settings first.';
     exit;
 }
 
@@ -40,9 +40,9 @@ if ($type === 'vi') {
     $name = 'bold2lox-status';
     $templateType = '2';
     $rows = [
-        ['Bold Connect online',      'bold_gateway_online=\v'],
-        ['Letzte Ausloesung ok',     'bold_action_ok=\v'],
-        ['Letzte Ausloesung (Zeit)', 'bold_last_action=\v'],
+        ['Bold Connect online',   'bold_gateway_online=\v'],
+        ['Last activation OK',    'bold_action_ok=\v'],
+        ['Last activation (time)', 'bold_last_action=\v'],
     ];
     $xml  = LX_BOM . '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
     $xml .= '<VirtualInUdp Title="Bold Smart Lock Status" Comment="bold2lox" Address="" Port="' . $udpPort . '">' . "\r\n";
@@ -63,7 +63,7 @@ if ($type === 'vi') {
     $xml .= '<VirtualOut Title="Bold Smart Lock" Comment="bold2lox" Address="' . $a("http://$ip") . '" '
           . 'CmdInit="" CloseAfterSend="true" CmdSep="">' . "\r\n";
     $xml .= "\t" . '<Info templateType="' . $templateType . '" minVersion="' . LX_MIN_VERSION . '"/>' . "\r\n";
-    $xml .= "\t" . '<VirtualOutCmd Title="Hauseingang oeffnen" Comment="bold2lox" '
+    $xml .= "\t" . '<VirtualOutCmd Title="Open lock" Comment="bold2lox" '
           . 'CmdOnMethod="GET" CmdOffMethod="GET" CmdOn="' . $a($cmdOpen) . '" CmdOnHTTP="" CmdOnPost="" '
           . 'CmdOff="' . $a($cmdClose) . '" CmdOffHTTP="" CmdOffPost="" CmdAnswer="" '
           . 'Analog="false" Repeat="0" RepeatRate="0"/>' . "\r\n";

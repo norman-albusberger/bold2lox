@@ -3,13 +3,13 @@ require_once "loxberry_system.php";
 require_once "loxberry_web.php";
 
 $L = LBSystem::readlanguage("language.ini");
-$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=3'>";
+$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=4'>";
 
 require_once "navigation.php";
 $navbar[2]['active'] = true;
 LBWeb::lbheader($L['COMMON.TITLE'], "https://github.com/norman-albusberger/bold2lox", "help.html");
 
-// Authorize-URL der Bold-App (OAuth2 Authorization Code, feste BoldApp-Werte).
+// Authorize URL of the Bold app (OAuth2 authorization code, fixed BoldApp values).
 $authorizeUrl = "https://auth.boldsmartlock.com/?client_id=BoldApp"
     . "&redirect_uri=" . rawurlencode("boldsmartlock://auth")
     . "&response_type=code";
@@ -18,20 +18,29 @@ $authorizeUrl = "https://auth.boldsmartlock.com/?client_id=BoldApp"
 <div class="ui-content">
     <p><?= $L['LOGIN.INTRO'] ?></p>
 
-    <h2><?= $L['LOGIN.STEP1'] ?></h2>
-    <p><a href="<?= htmlspecialchars($authorizeUrl) ?>" target="_blank" rel="noopener"
-          class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"><?= $L['LOGIN.OPEN_BTN'] ?></a></p>
-    <p class="hint"><?= $L['LOGIN.STEP1_HELP'] ?></p>
-
-    <h2><?= $L['LOGIN.STEP2'] ?></h2>
-    <p class="hint"><?= $L['LOGIN.STEP2_HELP'] ?></p>
-    <div class="ui-field-contain">
-        <label for="login_code"><?= $L['LOGIN.CODE'] ?></label>
-        <input type="text" id="login_code" placeholder="boldsmartlock://auth?code=…">
+    <div class="login-step">
+        <h2><?= $L['LOGIN.STEP1'] ?></h2>
+        <p><a href="<?= htmlspecialchars($authorizeUrl) ?>" target="_blank" rel="noopener"
+              class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"><?= $L['LOGIN.OPEN_BTN'] ?></a></p>
+        <p class="hint"><?= $L['LOGIN.STEP1_HELP'] ?></p>
     </div>
-    <button type="button" id="btnLoginExchange" class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"><?= $L['LOGIN.EXCHANGE_BTN'] ?></button>
 
-    <!-- Erfolg -->
+    <div class="login-step">
+        <h2><?= $L['LOGIN.STEP2'] ?></h2>
+        <p class="hint"><?= $L['LOGIN.STEP2_HELP'] ?></p>
+        <div class="ui-field-contain">
+            <label for="login_code"><?= $L['LOGIN.CODE'] ?></label>
+            <input type="text" id="login_code" autocomplete="off" spellcheck="false"
+                   placeholder="<?= htmlspecialchars($L['LOGIN.CODE_PLACEHOLDER']) ?>">
+        </div>
+        <button type="button" id="btnLoginExchange" class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"><?= $L['LOGIN.EXCHANGE_BTN'] ?></button>
+
+        <div data-role="collapsible" data-collapsed="true" data-inset="true" class="login-tip">
+            <h3><?= $L['LOGIN.TIP_TITLE'] ?></h3>
+            <p class="hint"><?= $L['LOGIN.TIP_BODY'] ?></p>
+        </div>
+    </div>
+
     <div id="loginDone" class="login-step" style="display:none">
         <div class="diag-step ok"><span class="mark">✓</span><span class="detail"><?= $L['LOGIN.SUCCESS'] ?></span></div>
         <a href="settings.php" class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"><?= $L['LOGIN.GOTO_SETTINGS'] ?></a>
@@ -40,5 +49,8 @@ $authorizeUrl = "https://auth.boldsmartlock.com/?client_id=BoldApp"
     <div id="loginError" class="diag-result"></div>
 </div>
 
-<script src='assets/login.js?v=2'></script>
+<script>
+    window.bold2loxLogin = { invalid: <?= json_encode($L['LOGIN.INVALID']) ?> };
+</script>
+<script src='assets/login.js?v=3'></script>
 <?php LBWeb::lbfooter(); ?>

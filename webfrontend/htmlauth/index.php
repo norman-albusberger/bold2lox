@@ -4,7 +4,7 @@ require_once "loxberry_web.php";
 require_once "Bold.php";
 
 $L = LBSystem::readlanguage("language.ini");
-$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=1'>";
+$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=4'>";
 
 $bold = new Bold();
 $settings = $bold->readSettings();
@@ -78,5 +78,5 @@ $closeUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=close";
     <pre id="testResult" class="test-result"></pre>
 </div>
 
-<script src='assets/index.js?v=2'></script>
+<script src='assets/index.js?v=3'></script>
 <?php LBWeb::lbfooter(); ?>

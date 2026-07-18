@@ -30,7 +30,7 @@ if ($decoded === null) {
         "steps" => [[
             "name" => "Engine",
             "ok" => false,
-            "detail" => $res['output'] !== '' ? $res['output'] : 'keine Ausgabe'
+            "detail" => $res['output'] !== '' ? $res['output'] : 'no output'
         ]]
     ]);
 } else {

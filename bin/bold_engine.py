@@ -130,7 +130,7 @@ def _refresh_access_token(cfg):
     token_url = cfg.get("token_url", DEFAULT_TOKEN_URL)
     missing = [k for k in ("client_id", "client_secret", "refresh_token") if not bold.get(k)]
     if missing:
-        raise SystemExit("Zugang unvollstaendig – fehlt: " + ", ".join(missing) + " (Einstellungen).")
+        raise SystemExit("Access incomplete – missing: " + ", ".join(missing) + " (Settings).")
 
     data = urllib.parse.urlencode({
         "grant_type": "refresh_token",
@@ -151,16 +151,16 @@ def _refresh_access_token(cfg):
         detail = exc.read().decode("utf-8", "replace")
         if exc.code in (400, 401):
             raise SystemExit(
-                "Token-Refresh abgelehnt (" + str(exc.code) + "): " + detail +
-                " – refresh_token vermutlich ungueltig/widerrufen. Bitte neu autorisieren."
+                "Token refresh rejected (" + str(exc.code) + "): " + detail +
+                " – refresh_token likely invalid/revoked. Please log in again."
             )
-        raise SystemExit(f"Token-Refresh fehlgeschlagen HTTP {exc.code}: {detail}")
+        raise SystemExit(f"Token refresh failed HTTP {exc.code}: {detail}")
     except urllib.error.URLError as exc:
-        raise SystemExit(f"Netzwerkfehler beim Token-Refresh: {exc.reason}")
+        raise SystemExit(f"Network error during token refresh: {exc.reason}")
 
     access = payload.get("access_token")
     if not access:
-        raise SystemExit("Token-Endpoint lieferte keinen access_token: " + json.dumps(payload))
+        raise SystemExit("Token endpoint returned no access_token: " + json.dumps(payload))
     bold["access_token"] = access
     bold["access_token_expiry"] = int(time.time()) + int(payload.get("expires_in", 3600))
     # Manche Provider rotieren den refresh_token bei jedem Refresh mit.
@@ -205,12 +205,12 @@ def api_request(cfg, method, path, base=None, _retry=True):
             return api_request(cfg, method, path, base=base, _retry=False)
         detail = exc.read().decode("utf-8", "replace")
         if exc.code == 401:
-            raise SystemExit("401 Unauthorized trotz Token-Refresh – Zugang pruefen (Einstellungen).")
+            raise SystemExit("401 Unauthorized despite token refresh – check access (Settings).")
         if exc.code == 429:
-            raise SystemExit("429 Too Many Requests – Bold-API drosselt. Spaeter erneut.")
-        raise SystemExit(f"HTTP {exc.code} bei {method} {path}: {detail}")
+            raise SystemExit("429 Too Many Requests – Bold API is throttling. Try again later.")
+        raise SystemExit(f"HTTP {exc.code} on {method} {path}: {detail}")
     except urllib.error.URLError as exc:
-        raise SystemExit(f"Netzwerkfehler bei {method} {path}: {exc.reason}")
+        raise SystemExit(f"Network error on {method} {path}: {exc.reason}")
 
 
 def send_udp(cfg, lines):
@@ -269,7 +269,7 @@ def _detect_gateway_id(cfg):
 
 def cmd_status(cfg):
     if not _bold(cfg).get("refresh_token") or not _gateway_id(cfg):
-        print(json.dumps({"skipped": "zugang/gateway fehlt"}))
+        print(json.dumps({"skipped": "access/gateway missing"}))
         return 0
     _, gw = api_request(cfg, "GET", f"/gateways/{_gateway_id(cfg)}/current-status")
     online = 1 if not (isinstance(gw, dict) and gw.get("errorCode")) else 0
@@ -290,10 +290,10 @@ def cmd_discover(cfg, as_json=False):
     if as_json:
         print(json.dumps({"devices": devices, "gatewayId": gateway_id}))
         return 0
-    print("Gefundene Geraete (device_id / name):")
+    print("Discovered devices (device_id / name):")
     for dev in devices:
         print(f"  id={dev['id']}  name={dev['name']!r}")
-    print(f"Gateway (Bold Connect): {gateway_id or 'nicht gefunden'}")
+    print(f"Gateway (Bold Connect): {gateway_id or 'not found'}")
     return 0
 
 
@@ -315,10 +315,10 @@ def cmd_diagnose(cfg):
     try:
         get_access_token(cfg, force=True)
         rem = _bold(cfg).get("access_token_expiry", 0) - int(time.time())
-        steps.append({"name": "Zugangsdaten / Token", "ok": True,
-                      "detail": f"Access-Token erneuert, gueltig ~{rem}s"})
+        steps.append({"name": "Credentials / token", "ok": True,
+                      "detail": f"Access token refreshed, valid ~{rem}s"})
     except SystemExit as exc:
-        steps.append({"name": "Zugangsdaten / Token", "ok": False, "detail": str(exc)})
+        steps.append({"name": "Credentials / token", "ok": False, "detail": str(exc)})
         print(json.dumps({"ok": False, "steps": steps}))
         return 1  # ohne Token keine weiteren Schritte moeglich
 
@@ -328,22 +328,22 @@ def cmd_diagnose(cfg):
         parsed = list(_v2_devices(perms))
         sel = str(_device_id(cfg))
         found = any(str(i) == sel for i, _n, _t in parsed)
-        steps.append({"name": "Geraeteliste", "ok": bool(found),
-                      "detail": f"{len(parsed)} Geraet(e) sichtbar; device_id {sel} "
-                                + ("gefunden" if found else "NICHT gefunden – bitte Discover/Schloss waehlen")})
+        steps.append({"name": "Device list", "ok": bool(found),
+                      "detail": f"{len(parsed)} device(s) visible; device_id {sel} "
+                                + ("found" if found else "NOT found – run Discover / pick a lock")})
     except SystemExit as exc:
-        steps.append({"name": "Geraeteliste", "ok": False, "detail": str(exc)})
+        steps.append({"name": "Device list", "ok": False, "detail": str(exc)})
 
     # 3) Bold Connect erreichbar?
     try:
         gw_id = _gateway_id(cfg)
         if not gw_id:
-            steps.append({"name": "Bold Connect", "ok": False, "detail": "keine gateway_id gesetzt"})
+            steps.append({"name": "Bold Connect", "ok": False, "detail": "no gateway_id set"})
         else:
             _, gw = api_request(cfg, "GET", f"/gateways/{gw_id}/current-status")
             online = not (isinstance(gw, dict) and gw.get("errorCode"))
             steps.append({"name": "Bold Connect", "ok": bool(online),
-                          "detail": "online" if online else "offline/unerreichbar: " + json.dumps(gw)})
+                          "detail": "online" if online else "offline / unreachable: " + json.dumps(gw)})
     except SystemExit as exc:
         steps.append({"name": "Bold Connect", "ok": False, "detail": str(exc)})
 
@@ -378,7 +378,7 @@ def cmd_login_exchange(cfg, payload):
     BoldApp-Client-Credentials in settings.json ab."""
     code = _extract_code(payload.get("code", ""))
     if not code:
-        print(json.dumps({"ok": False, "detail": "kein Code angegeben"}))
+        print(json.dumps({"ok": False, "detail": "no code provided"}))
         return 1
     url = cfg.get("token_url", DEFAULT_TOKEN_URL)
     form = urllib.parse.urlencode({
@@ -397,7 +397,7 @@ def cmd_login_exchange(cfg, payload):
         return 1
     body = json.loads(txt or "{}") or {}
     if not body.get("access_token") or not body.get("refresh_token"):
-        print(json.dumps({"ok": False, "detail": "keine Tokens erhalten: " + _short(txt)}))
+        print(json.dumps({"ok": False, "detail": "no tokens received: " + _short(txt)}))
         return 1
     bold = _bold(cfg)
     bold["client_id"] = LEGACY_CLIENT_ID

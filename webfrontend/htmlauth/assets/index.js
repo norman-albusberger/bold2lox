@@ -1,4 +1,4 @@
-// bold2lox – Web-UI-Helfer (jQuery Mobile ist von LoxBerry vorhanden)
+// bold2lox – web UI helpers (jQuery Mobile is provided by LoxBerry)
 (function () {
     "use strict";
 
@@ -6,7 +6,7 @@
         if (navigator.clipboard && navigator.clipboard.writeText) {
             return navigator.clipboard.writeText(text);
         }
-        // Fallback
+        // Fallback for older browsers
         var ta = document.createElement("textarea");
         ta.value = text;
         document.body.appendChild(ta);
@@ -16,7 +16,7 @@
         return Promise.resolve();
     }
 
-    // URL kopieren
+    // Copy a URL to the clipboard
     document.querySelectorAll(".copy-btn").forEach(function (btn) {
         btn.addEventListener("click", function () {
             var el = document.getElementById(btn.getAttribute("data-target"));
@@ -29,7 +29,7 @@
         });
     });
 
-    // Test-Ausloesung
+    // "Test: activate now" button on the Overview page
     var testBtn = document.getElementById("testOpen");
     if (testBtn) {
         testBtn.addEventListener("click", function () {
@@ -38,11 +38,11 @@
             fetch(testBtn.getAttribute("data-url"))
                 .then(function (r) { return r.text(); })
                 .then(function (t) { out.textContent = t; })
-                .catch(function (e) { out.textContent = "Fehler: " + e; });
+                .catch(function (e) { out.textContent = "Error: " + e; });
         });
     }
 
-    // Zufalls-Secret erzeugen
+    // Generate a random trigger secret
     var gen = document.getElementById("genSecret");
     if (gen) {
         gen.addEventListener("click", function () {
@@ -55,7 +55,7 @@
         });
     }
 
-    // Test / Diagnose auf der Einstellungsseite
+    // Render diagnose / activate results on the Settings page
     function renderResult(box, data) {
         box.innerHTML = "";
         if (data && Array.isArray(data.steps)) {
@@ -68,19 +68,19 @@
                 box.appendChild(row);
             });
         } else if (data) {
-            // activate-Antwort: {http, ok, errorCode}
+            // activate response: {http, ok, errorCode}
             var ok = data.ok === 1 || data.ok === true;
             var row = document.createElement("div");
             row.className = "diag-step " + (ok ? "ok" : "bad");
             row.innerHTML = "<span class='mark'>" + (ok ? "✓" : "✗") +
-                "</span><strong>Schloss ausgeloest</strong><span class='detail'>" +
+                "</span><strong>Lock activated</strong><span class='detail'>" +
                 JSON.stringify(data) + "</span>";
             box.appendChild(row);
         }
     }
 
-    // Speichert die aktuellen Formularwerte, damit der Test nicht gegen einen
-    // veralteten gespeicherten Stand laeuft.
+    // Save the current form values so the test runs against the latest config,
+    // not a stale saved state.
     function saveForm() {
         var form = document.querySelector("form");
         if (!form) return Promise.resolve();
@@ -90,14 +90,14 @@
 
     function runTest(what) {
         var box = document.getElementById("diagResult");
-        box.innerHTML = "<div class='diag-step'>… (speichere &amp; teste)</div>";
+        box.innerHTML = "<div class='diag-step'>… (saving &amp; testing)</div>";
         saveForm()
             .then(function () { return fetch("test.php?what=" + encodeURIComponent(what)); })
             .then(function (r) { return r.json(); })
             .then(function (d) { renderResult(box, d); })
             .catch(function (e) {
                 box.innerHTML = "<div class='diag-step bad'><span class='mark'>✗</span>" +
-                    "<span class='detail'>Fehler: " + e + "</span></div>";
+                    "<span class='detail'>Error: " + e + "</span></div>";
             });
     }
 
@@ -106,12 +106,12 @@
 
     var btnAct = document.getElementById("btnActivateTest");
     if (btnAct) btnAct.addEventListener("click", function () {
-        if (window.confirm("Das Schloss wird jetzt testweise ausgeloest. Fortfahren?")) {
+        if (window.confirm("The lock will be activated now as a test. Continue?")) {
             runTest("activate");
         }
     });
 
-    // Geraete-Dropdown -> device_id / gateway_id fuellen
+    // Lock dropdown -> fill device_id / gateway_id
     var pick = document.getElementById("device_pick");
     if (pick) {
         pick.addEventListener("change", function () {

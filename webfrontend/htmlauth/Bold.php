@@ -94,7 +94,7 @@ class Bold
         ];
         $proc = proc_open($cmd, $descriptors, $pipes);
         if (!is_resource($proc)) {
-            return ["returnCode" => 1, "output" => "", "stderr" => "proc_open fehlgeschlagen"];
+            return ["returnCode" => 1, "output" => "", "stderr" => "proc_open failed"];
         }
         fwrite($pipes[0], json_encode($payload));
         fclose($pipes[0]);

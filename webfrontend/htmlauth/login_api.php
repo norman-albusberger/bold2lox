@@ -16,7 +16,7 @@ $step = $_GET['step'] ?? '';
 
 if ($step !== 'exchange') {
     http_response_code(400);
-    echo json_encode(["ok" => false, "detail" => "unbekannter step"]);
+    echo json_encode(["ok" => false, "detail" => "unknown step"]);
     exit;
 }
 
@@ -29,7 +29,7 @@ if ($decoded === null) {
     echo json_encode([
         "ok" => false,
         "detail" => $res['output'] !== '' ? $res['output']
-                    : ($res['stderr'] !== '' ? $res['stderr'] : 'keine Ausgabe'),
+                    : ($res['stderr'] !== '' ? $res['stderr'] : 'no output'),
     ]);
 } else {
     echo $res['output'];

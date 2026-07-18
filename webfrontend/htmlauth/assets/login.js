@@ -1,39 +1,62 @@
-// bold2lox – Bootstrap-Login (OAuth2 Authorization Code): Code -> Tokens
+// bold2lox – bootstrap login (OAuth2 authorization code): code -> tokens
 (function () {
     "use strict";
 
+    var strings = window.bold2loxLogin || {};
+    var input = document.getElementById("login_code");
+    var btn = document.getElementById("btnLoginExchange");
+    var errorBox = document.getElementById("loginError");
+
     function showError(detail) {
-        document.getElementById("loginError").innerHTML =
+        errorBox.innerHTML =
             "<div class='diag-step bad'><span class='mark'>✗</span>" +
-            "<span class='detail'>" + (detail || "Fehler") + "</span></div>";
+            "<span class='detail'>" + (detail || "Error") + "</span></div>";
     }
 
-    function busy(btn, on) {
+    function clearError() {
+        errorBox.innerHTML = "";
+    }
+
+    function busy(on) {
         if (!btn) return;
         btn.disabled = on;
         btn.style.opacity = on ? "0.6" : "";
     }
 
-    var btn = document.getElementById("btnLoginExchange");
-    if (btn) btn.addEventListener("click", function () {
-        document.getElementById("loginError").innerHTML = "";
-        var code = document.getElementById("login_code").value.trim();
-        if (!code) { showError("Bitte den Code (oder die boldsmartlock://-URL) einfügen."); return; }
-        busy(btn, true);
+    function looksLikeCode(value) {
+        // Accept the full boldsmartlock://…code=… URL or a bare token.
+        return value.indexOf("code=") !== -1 || /^[0-9a-fA-F-]{8,}$/.test(value);
+    }
+
+    function submit() {
+        clearError();
+        var code = (input.value || "").trim();
+        if (!code) { showError(strings.invalid); input.focus(); return; }
+        if (!looksLikeCode(code)) { showError(strings.invalid); input.focus(); return; }
+        busy(true);
         fetch("login_api.php?step=exchange", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({ code: code }).toString()
         }).then(function (r) { return r.json(); })
           .then(function (d) {
-              busy(btn, false);
+              busy(false);
               if (d.ok) {
                   document.getElementById("loginDone").style.display = "";
                   btn.style.display = "none";
+                  input.disabled = true;
               } else {
                   showError(d.detail || ("Status " + (d.status || "?")));
               }
           })
-          .catch(function (e) { busy(btn, false); showError(String(e)); });
-    });
+          .catch(function (e) { busy(false); showError(String(e)); });
+    }
+
+    if (btn) btn.addEventListener("click", submit);
+    if (input) {
+        input.focus();
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") { e.preventDefault(); submit(); }
+        });
+    }
 })();
