@@ -1,12 +1,12 @@
 <?php
 /**
- * bold2lox – lokaler Trigger-Endpoint fuer den Loxone Miniserver.
+ * bold2lox – local trigger endpoint for the Loxone Miniserver.
  *
- * Erreichbar (unauthentifiziert, nur LAN) unter:
+ * Reachable (unauthenticated, LAN only) at:
  *   http://<loxberry-ip>/plugins/bold2lox/activate.php?key=SECRET&cmd=open
- * Der Miniserver ruft das per Virtual Output (HTTP GET) auf – kein TLS noetig.
+ * The Miniserver calls it via a Virtual Output (HTTP GET) – no TLS needed.
  *
- * cmd=open  -> remote-activation (Standard)
+ * cmd=open  -> remote-activation (default)
  * cmd=close -> remote-deactivation
  */
 
@@ -22,7 +22,7 @@ if (!is_array($cfg)) {
     exit;
 }
 
-// Geteiltes Geheimnis pruefen (verhindert Ausloesen durch Fremde im LAN).
+// Check the shared secret (prevents triggering by strangers on the LAN).
 $secret = isset($cfg['trigger_secret']) ? (string) $cfg['trigger_secret'] : '';
 $key    = isset($_GET['key']) ? (string) $_GET['key'] : '';
 if ($secret === '' || !hash_equals($secret, $key)) {

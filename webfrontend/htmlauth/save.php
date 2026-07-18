@@ -1,8 +1,8 @@
 <?php
 /**
- * bold2lox – leichtgewichtiges Speichern der Einstellungen (authentifiziert),
- * das die Test-Buttons vor Diagnose/Aktivierung aufrufen. Kein Dienst-Neustart,
- * und der vorhandene access_token bleibt erhalten (kein erzwungener Refresh).
+ * bold2lox – lightweight save of the settings (authenticated), called by the
+ * test buttons before diagnose/activate. No service restart, and the existing
+ * access_token is kept (no forced refresh).
  */
 require_once "loxberry_system.php";
 require_once "Bold.php";

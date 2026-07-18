@@ -1,9 +1,9 @@
 <?php
 /**
- * bold2lox – Test-/Diagnose-Endpoint fuer die Web-UI (authentifiziert).
+ * bold2lox – test/diagnostic endpoint for the web UI (authenticated).
  *
- *   test.php?what=diagnose  -> Schritt-fuer-Schritt-Check (loest NICHT aus)
- *   test.php?what=activate  -> loest das Schloss testweise AUS
+ *   test.php?what=diagnose  -> step-by-step check (does NOT trigger)
+ *   test.php?what=activate  -> triggers the lock as a test
  *
  * Arbeitet auf den gespeicherten Einstellungen (settings.json).
  */
@@ -21,8 +21,8 @@ if ($what === 'activate') {
     $res = $bold->runEngine('diagnose');
 }
 
-// Der Engine gibt JSON auf stdout aus; unveraendert durchreichen.
-// Falls doch kein JSON (z. B. Python-Traceback), sauber verpacken.
+// The engine prints JSON on stdout; pass it through unchanged.
+// If it isn't JSON (e.g. a Python traceback), wrap it cleanly.
 $decoded = json_decode($res['output'], true);
 if ($decoded === null) {
     echo json_encode([

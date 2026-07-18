@@ -1,33 +1,33 @@
 #!/bin/bash
 #
 # bold2lox – uninstall
-# Stoppt und entfernt den systemd-Dienst und raeumt Logs/Daten auf.
+# Stops and removes the systemd service and cleans up logs/data.
 
 SERVICE_FILE="/etc/systemd/system/bold2lox.service"
 LOG_DIR="$LBPLOG/bold2lox"
 DATA_DIR="$LBPDATA/bold2lox"
 
-echo "Starte Deinstallation von bold2lox..."
+echo "Starting bold2lox uninstall..."
 
 if [ -f "$SERVICE_FILE" ]; then
-    echo "Stoppe und entferne bold2lox.service..."
+    echo "Stopping and removing bold2lox.service..."
     sudo systemctl stop bold2lox.service 2>/dev/null
     sudo systemctl disable bold2lox.service 2>/dev/null
     sudo rm -f "$SERVICE_FILE"
     sudo systemctl daemon-reload
 else
-    echo "bold2lox.service nicht gefunden, ueberspringe."
+    echo "bold2lox.service not found, skipping."
 fi
 
 if [ -d "$LOG_DIR" ]; then
     sudo rm -rf "$LOG_DIR"
-    echo "Logs entfernt."
+    echo "Logs removed."
 fi
 
 if [ -d "$DATA_DIR" ]; then
     sudo rm -rf "$DATA_DIR"
-    echo "Daten (inkl. settings.json mit Token) entfernt."
+    echo "Data (incl. settings.json with tokens) removed."
 fi
 
-echo "Deinstallation abgeschlossen."
+echo "Uninstall complete."
 exit 0

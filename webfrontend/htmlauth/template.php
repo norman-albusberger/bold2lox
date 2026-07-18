@@ -1,14 +1,14 @@
 <?php
 /**
- * bold2lox – erzeugt Loxone-Config-Vorlagen (.LxAddOn) zum Download.
+ * bold2lox – generate Loxone Config templates (.LxAddOn) for download.
  *
- *   template.php?type=vo   Virtueller Ausgang: Schloss auslösen (open/close)
- *   template.php?type=vi   Virtueller UDP-Eingang: Status
+ *   template.php?type=vo   Virtual Output: trigger the lock (open/close)
+ *   template.php?type=vi   Virtual UDP Input: status
  *
- * Format nach echten Loxone-Library-Vorlagen: eine .LxAddOn ist ein ZIP aus
- * <name>.xml + desc.json. Die XML traegt ein <Info templateType=".."/> und ein
- * UTF-8-BOM. templateType: "3" = Virtueller Ausgang, "2" = Virtueller Eingang.
- * Eine Datei kann nur Eingaenge ODER Ausgaenge enthalten -> zwei Dateien.
+ * Format follows real Loxone Library templates: a .LxAddOn is a ZIP of
+ * <name>.xml + desc.json. The XML carries an <Info templateType=".."/> and a
+ * UTF-8 BOM. templateType: "3" = Virtual Output, "2" = Virtual Input.
+ * One file can only contain inputs OR outputs -> two files.
  */
 require_once "loxberry_system.php";
 require_once "Bold.php";
@@ -27,8 +27,8 @@ $type = $_GET['type'] ?? 'vo';
 $enc  = ENT_XML1 | ENT_QUOTES;
 $a = fn($s) => htmlspecialchars((string)$s, $enc);
 
-// Der Ausgang braucht das Trigger-Secret in der URL – sonst waere die Vorlage
-// kaputt (activate.php antwortet mit 403). Also erst nach Konfiguration ausliefern.
+// The output needs the trigger secret in the URL – otherwise the template
+// would be broken (activate.php returns 403). Only serve it once configured.
 if ($type !== 'vi' && $secret === '') {
     http_response_code(409);
     header('Content-Type: text/plain; charset=utf-8');
@@ -92,9 +92,9 @@ echo $archive;
 
 
 /**
- * Minimaler ZIP-Writer OHNE ext-zip. Nutzt Deflate (Methode 8) wie die echten
- * Loxone-Library-Vorlagen; faellt auf Store zurueck, falls gzdeflate fehlt.
- * $files = [name => inhalt].
+ * Minimal ZIP writer WITHOUT ext-zip. Uses Deflate (method 8) like the real
+ * Loxone Library templates; falls back to Store if gzdeflate is missing.
+ * $files = [name => content].
  */
 function zip_store(array $files): string
 {

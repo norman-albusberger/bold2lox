@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 /**
- * bold2lox – Helper rund um settings.json und den Python-Engine.
+ * bold2lox – helper around settings.json and the Python engine.
  */
 class Bold
 {
@@ -15,8 +15,8 @@ class Bold
         ?string $settingsPath = null,
         ?string $enginePath = null
     ) {
-        // LBPDATADIR / LBPBINDIR werden von LoxBerry gesetzt und zeigen auf den
-        // Plugin-Ordner (…/data/plugins/bold2lox bzw. …/bin/plugins/bold2lox).
+        // LBPDATADIR / LBPBINDIR are set by LoxBerry and point to the plugin
+        // folders (…/data/plugins/bold2lox and …/bin/plugins/bold2lox).
         $this->settingsPath = $settingsPath ?? (LBPDATADIR . "/settings.json");
         $this->enginePath   = $enginePath ?? (LBPBINDIR . "/bold_engine.py");
     }
@@ -35,8 +35,8 @@ class Bold
     }
 
     /**
-     * Speichert Einstellungen (rekursiv gemerged, damit verschachtelte
-     * Defaults erhalten bleiben).
+     * Save settings (recursively merged so nested
+     * defaults are preserved).
      */
     public function saveSettings(array $newSettings): bool
     {
@@ -65,7 +65,7 @@ class Bold
     }
 
     /**
-     * Fragt die Geraeteliste ueber die Bold-Cloud ab (braucht gueltigen Token).
+     * Query the device list from the Bold cloud (needs a valid token).
      *
      * @return array Liste von ["id"=>..,"name"=>..,"gatewayId"=>..]
      */
@@ -77,8 +77,8 @@ class Bold
     }
 
     /**
-     * Ruft den Engine mit einem JSON-Payload ueber stdin auf (fuer den Login –
-     * so landen Telefonnummer/Passwort nicht in der Prozessliste).
+     * Call the engine with a JSON payload via stdin (for the login –
+     * so credentials don't end up in the process list).
      *
      * @return array{returnCode:int, output:string, stderr:string}
      */

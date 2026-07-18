@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-bold2lox Status-Daemon – pollt zyklisch den Bold-Gateway-Status und schiebt ihn
-per UDP an den Miniserver (Virtual UDP Input). Von systemd (postroot.sh) als
-Dienst gestartet. Fuer die Rueckmeldung optional; die reine Steuerung braucht
-ihn nicht. Bei fehlendem Token/Gateway wird uebersprungen (kein API-Spam).
+bold2lox status daemon – periodically polls the Bold gateway status and pushes it
+via UDP to the Miniserver (Virtual UDP Input). Started as a service by systemd
+(postroot.sh). Optional (only for feedback; plain control doesn't need it). Skipped
+when the token/gateway is missing (no API spam).
 """
 import os
 import sys

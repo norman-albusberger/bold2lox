@@ -1,10 +1,10 @@
 <?php
 /**
- * bold2lox – Login-Proxy fuer den Bootstrap (authentifiziert).
+ * bold2lox – login proxy for the bootstrap (authenticated).
  *
  *   login_api.php?step=exchange   POST: code  (Code oder boldsmartlock://auth?code=... URL)
  *
- * Reicht den Code per stdin an den Engine weiter, der ihn gegen Tokens tauscht.
+ * Passes the code to the engine via stdin, which exchanges it for tokens.
  */
 require_once "loxberry_system.php";
 require_once "Bold.php";

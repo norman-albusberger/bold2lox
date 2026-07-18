@@ -1,17 +1,17 @@
 #!/bin/bash
 #
-# bold2lox – postroot (laeuft als root)
-# Richtet den Status-Daemon als systemd-Dienst ein (optionale Rueckmeldung an
-# den Miniserver). Der Dienst laeuft als loxberry-User und liest settings.json.
+# bold2lox – postroot (runs as root)
+# Sets up the status daemon as a systemd service (optional feedback to
+# the Miniserver). The service runs as the loxberry user and reads settings.json.
 
 DAEMON="$LBPBIN/bold2lox/bold2lox-daemon"
 SETTINGS_FILE="$LBPDATA/bold2lox/settings.json"
 SERVICE_FILE="/etc/systemd/system/bold2lox.service"
 
-echo "<INFO> bold2lox: Richte systemd-Dienst ein..."
+echo "<INFO> bold2lox: setting up systemd service..."
 
 if [ ! -f "$DAEMON" ]; then
-    echo "<ERROR> Daemon nicht gefunden: $DAEMON. Bitte Plugin neu installieren."
+    echo "<ERROR> Daemon not found: $DAEMON. Please reinstall the plugin."
     exit 1
 fi
 chmod +x "$DAEMON" 2>/dev/null
@@ -39,11 +39,11 @@ systemctl enable bold2lox.service
 systemctl restart bold2lox.service
 
 if [ $? -eq 0 ]; then
-    echo "<OK> bold2lox.service laeuft."
+    echo "<OK> bold2lox.service is running."
 else
-    echo "<ERROR> bold2lox.service konnte nicht gestartet werden."
+    echo "<ERROR> bold2lox.service could not be started."
     exit 1
 fi
 
-echo "<OK> bold2lox: postroot abgeschlossen."
+echo "<OK> bold2lox: postroot complete."
 exit 0
