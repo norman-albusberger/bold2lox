@@ -33,6 +33,7 @@ Bootstrap login (OAuth2 authorization code, payload as JSON on stdin):
 
 Configuration: settings.json (path via $BOLD2LOX_SETTINGS or the default path).
 """
+import fcntl
 import json
 import os
 import socket
@@ -61,6 +62,8 @@ LEGACY_CLIENT_ID = "BoldApp"
 LEGACY_CLIENT_SECRET = "pgJFgnGB87f9ednFiiHygCbf"
 # Safety margin: refresh the token before it expires.
 EXPIRY_SKEW_SECONDS = 60
+# Loxone timestamps count seconds since 2009-01-01 00:00:00 UTC, not since 1970.
+LOXONE_EPOCH_OFFSET = 1230768000
 
 
 def load_settings():
@@ -121,9 +124,44 @@ def _bold(cfg):
     return cfg.setdefault("bold", {})
 
 
-def _refresh_access_token(cfg):
+def _refresh_access_token(cfg, force=False):
     """Exchange the refresh_token for a fresh access_token and persist the result.
-    Returns the new access_token."""
+    Returns the new access_token.
+
+    Bold rotates the refresh_token on every refresh, so two processes refreshing
+    at the same time (status daemon + trigger/diagnose) would race: the second one
+    would send an already-rotated token and get "InvalidRefreshToken". We therefore
+    serialise refreshes with an exclusive lock and re-read settings.json inside it,
+    so a token another process just obtained is adopted instead of re-refreshed.
+    """
+    lock_path = SETTINGS_PATH + ".lock"
+    with open(lock_path, "a+") as lock_fh:
+        fcntl.flock(lock_fh, fcntl.LOCK_EX)
+        try:
+            return _refresh_locked(cfg, force)
+        finally:
+            fcntl.flock(lock_fh, fcntl.LOCK_UN)
+
+
+def _refresh_locked(cfg, force=False):
+    """Actual refresh; must be called while holding the settings lock."""
+    # Re-read from disk: another process may have refreshed while we waited, so we
+    # always send the newest refresh_token (Bold invalidates rotated ones).
+    try:
+        fresh = load_settings()
+    except Exception:
+        fresh = cfg
+    fresh_bold = fresh.get("bold") or {}
+    now = int(time.time())
+    if (not force
+            and fresh_bold.get("access_token")
+            and fresh_bold.get("access_token_expiry", 0) > now + EXPIRY_SKEW_SECONDS):
+        # Someone else already refreshed - adopt their token instead of racing.
+        _bold(cfg).update(fresh_bold)
+        return fresh_bold["access_token"]
+
+    # Work on the freshest state so we send the newest refresh_token.
+    cfg["bold"] = dict(fresh_bold) or _bold(cfg)
     bold = _bold(cfg)
     token_url = cfg.get("token_url", DEFAULT_TOKEN_URL)
     missing = [k for k in ("client_id", "client_secret", "refresh_token") if not bold.get(k)]
@@ -150,7 +188,10 @@ def _refresh_access_token(cfg):
         if exc.code in (400, 401):
             raise SystemExit(
                 "Token refresh rejected (" + str(exc.code) + "): " + detail +
-                " – refresh_token likely invalid/revoked. Please log in again."
+                " – the refresh token is no longer valid. Most common cause: the same "
+                "Bold user was signed in somewhere else (Bold allows only one active "
+                "session per user), e.g. the Bold phone app. Use a dedicated Bold user "
+                "for this plugin and log in again."
             )
         raise SystemExit(f"Token refresh failed HTTP {exc.code}: {detail}")
     except urllib.error.URLError as exc:
@@ -159,12 +200,18 @@ def _refresh_access_token(cfg):
     access = payload.get("access_token")
     if not access:
         raise SystemExit("Token endpoint returned no access_token: " + json.dumps(payload))
-    bold["access_token"] = access
-    bold["access_token_expiry"] = int(time.time()) + int(payload.get("expires_in", 3600))
-    # Some providers rotate the refresh_token on every refresh.
+
+    # Persist on the freshly read state so concurrent changes elsewhere survive.
+    target = fresh if isinstance(fresh, dict) else cfg
+    tbold = target.setdefault("bold", {})
+    tbold.update(bold)
+    tbold["access_token"] = access
+    tbold["access_token_expiry"] = int(time.time()) + int(payload.get("expires_in", 3600))
+    # Bold rotates the refresh_token on every refresh - store the new one.
     if payload.get("refresh_token"):
-        bold["refresh_token"] = payload["refresh_token"]
-    save_settings(cfg)
+        tbold["refresh_token"] = payload["refresh_token"]
+    save_settings(target)
+    _bold(cfg).update(tbold)
     return access
 
 
@@ -176,7 +223,7 @@ def get_access_token(cfg, force=False):
             and bold.get("access_token")
             and bold.get("access_token_expiry", 0) > now + EXPIRY_SKEW_SECONDS):
         return bold["access_token"]
-    return _refresh_access_token(cfg)
+    return _refresh_access_token(cfg, force)
 
 
 # --------------------------------------------------------------------------- #
@@ -230,13 +277,31 @@ def _gateway_id(cfg):
     return _bold(cfg).get("gateway_id", 0)
 
 
+def _is_error_code(value):
+    """Bold returns 2xx with an errorCode field on some failures. Treat only a
+    real error value as failure - null/0/"" and the literal strings "None"/"null"
+    mean success."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() not in ("", "none", "null", "0")
+    if isinstance(value, (int, float)):
+        return value != 0
+    return bool(value)
+
+
 def cmd_activate(cfg, deactivate=False):
     verb = "remote-deactivation" if deactivate else "remote-activation"
     status, data = api_request(cfg, "POST", f"/devices/{_device_id(cfg)}/{verb}")
     err = data.get("errorCode") if isinstance(data, dict) else None
-    ok = 1 if (200 <= status < 300 and not err) else 0
-    send_udp(cfg, [f"bold_last_action={int(time.time())}", f"bold_action_ok={ok}"])
-    print(json.dumps({"http": status, "ok": ok, "errorCode": err}))
+    ok = 1 if (200 <= status < 300 and not _is_error_code(err)) else 0
+    send_udp(cfg, [
+        f"bold_action_ok={ok}",
+        # Loxone counts seconds since 2009-01-01, not since 1970.
+        f"bold_last_action={int(time.time()) - LOXONE_EPOCH_OFFSET}",
+    ])
+    # 'response' is included so the UI test shows what Bold actually returned.
+    print(json.dumps({"http": status, "ok": ok, "errorCode": err, "response": data}))
     return 0 if ok else 1
 
 

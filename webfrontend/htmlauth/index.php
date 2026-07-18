@@ -20,9 +20,8 @@ $hasToken  = !empty($settings['bold']['refresh_token']);
 $hasDevice = !empty($settings['bold']['device_id']);
 $configComplete = $hasToken && $hasDevice && $secret !== '';
 
-$baseUrl  = "http://{$server_ip}/plugins/bold2lox/activate.php";
-$openUrl  = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=open";
-$closeUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=close";
+$baseUrl = "http://{$server_ip}/plugins/bold2lox/activate.php";
+$openUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=open";
 ?>
 
 <div class="ui-content">
@@ -45,14 +44,10 @@ $closeUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=close";
         <button class="copy-btn ui-btn ui-btn-a ui-corner-all ui-btn-inline" data-target="openUrl"><?= $L['COMMON.COPY'] ?></button>
     </div>
 
-    <h2><?= $L['OVERVIEW.CLOSE_URL'] ?></h2>
-    <div class="url-row">
-        <code class="url" id="closeUrl"><?= htmlspecialchars($closeUrl) ?></code>
-        <button class="copy-btn ui-btn ui-btn-a ui-corner-all ui-btn-inline" data-target="closeUrl"><?= $L['COMMON.COPY'] ?></button>
-    </div>
+    <p class="hint"><?= $L['OVERVIEW.OPEN_URL_HELP'] ?></p>
 
     <p class="hint"><?= $L['OVERVIEW.UDP_HINT'] ?> <strong><?= htmlspecialchars((string)$udpPort) ?></strong>
-        (<code>bold_gateway_online=\v</code>, <code>bold_action_ok=\v</code>, <code>bold_last_action=\v</code>).</p>
+        (<code>bold_action_ok=\v</code>, <code>bold_last_action=\v</code>, <code>bold_gateway_online=\v</code>).</p>
 
     <h2><?= $L['OVERVIEW.TEMPLATES'] ?></h2>
     <p class="hint"><?= $L['OVERVIEW.TEMPLATES_HELP'] ?></p>

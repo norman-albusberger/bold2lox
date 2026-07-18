@@ -58,6 +58,16 @@ Bold uses **OAuth2**: a **short-lived** access token per request, renewed via a
 automatically** at the token endpoint (`grant_type=refresh_token`) when it expires — so:
 set it up once, and it keeps working.
 
+> ### ⚠️ Use a separate Bold user for the plugin
+> Bold allows only **one active session per user**. If the plugin signs in with the
+> same user as your phone, the Bold app gets logged out – and as soon as the app
+> signs in again, the plugin's refresh token is revoked (`InvalidRefreshToken`) and
+> the lock stops working from Loxone.
+>
+> So: create a **dedicated Bold user** for this plugin and invite it to your lock.
+> Note that registering a Bold user needs **its own mobile phone number**. Never sign
+> in with that user in the Bold app.
+
 **First sign-in – in the plugin, no external tools** (Login tab), exactly the OAuth2
 authorization-code flow the Bold app uses:
 
@@ -97,13 +107,25 @@ IP, trigger secret and UDP port, so finish the setup first. Two files, because o
 1. **Virtual Output**, address `http://<loxberry-ip>` (port 80).
 2. **Virtual Output Command**, *ON:*
    `/plugins/bold2lox/activate.php?key=SECRET&cmd=open` (GET).
-3. Connect it to a **push-button** and place it in the app. Optional *OFF:*
-   `cmd=close` for `remote-deactivation`.
+3. Connect it to a **push-button (Taster)** and place it in the app.
+
+There is deliberately **no "close" command**: the Bold cylinder only engages for a
+moment and releases by itself, so nothing stays open that could be closed. (The API's
+`remote-deactivation` only ends a permanent "keep active" state, which this plugin
+never sets – `bold_engine.py deactivate` exists for completeness only.)
 
 *Feedback (status → app):*
 1. **Virtual UDP Input** on the port chosen in Settings.
 2. Command-recognition entries:
-   `bold_gateway_online=\v`, `bold_action_ok=\v`, `bold_last_action=\v`.
+
+| Value | Meaning |
+| ----- | ------- |
+| `bold_action_ok=\v` | `1` = the last trigger was accepted by Bold, `0` = it failed |
+| `bold_last_action=\v` | timestamp of the last trigger, **in Loxone time** (seconds since 2009-01-01, so you can feed it straight into a status block) |
+| `bold_gateway_online=\v` | `1` = Bold Connect reachable, `0` = offline (polled every `poll_interval_seconds`) |
+
+Bold's cloud offers no door/state events, so there is no "door was opened" signal –
+only whether *your* trigger succeeded and whether the Bold Connect is reachable.
 
 ## Layout (plugin folder → target paths on the LoxBerry)
 

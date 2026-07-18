@@ -57,15 +57,16 @@ if ($type === 'vi') {
 } else {
     $name = 'bold2lox-output';
     $templateType = '3';
-    $cmdOpen  = '/plugins/bold2lox/activate.php?key=' . rawurlencode($secret) . '&cmd=open';
-    $cmdClose = '/plugins/bold2lox/activate.php?key=' . rawurlencode($secret) . '&cmd=close';
+    $cmdOpen = '/plugins/bold2lox/activate.php?key=' . rawurlencode($secret) . '&cmd=open';
     $xml  = LX_BOM . '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
     $xml .= '<VirtualOut Title="Bold Smart Lock" Comment="bold2lox" Address="' . $a("http://$ip") . '" '
           . 'CmdInit="" CloseAfterSend="true" CmdSep="">' . "\r\n";
     $xml .= "\t" . '<Info templateType="' . $templateType . '" minVersion="' . LX_MIN_VERSION . '"/>' . "\r\n";
+    // Momentary only: the cylinder re-engages by itself, so there is no "close"
+    // counterpart. Drive this from a push-button (Taster) in Loxone.
     $xml .= "\t" . '<VirtualOutCmd Title="Open lock" Comment="bold2lox" '
-          . 'CmdOnMethod="GET" CmdOffMethod="GET" CmdOn="' . $a($cmdOpen) . '" CmdOnHTTP="" CmdOnPost="" '
-          . 'CmdOff="' . $a($cmdClose) . '" CmdOffHTTP="" CmdOffPost="" CmdAnswer="" '
+          . 'CmdOnMethod="GET" CmdOn="' . $a($cmdOpen) . '" CmdOnHTTP="" CmdOnPost="" '
+          . 'CmdOffMethod="GET" CmdOff="" CmdOffHTTP="" CmdOffPost="" CmdAnswer="" '
           . 'Analog="false" Repeat="0" RepeatRate="0"/>' . "\r\n";
     $xml .= '</VirtualOut>' . "\r\n";
 }

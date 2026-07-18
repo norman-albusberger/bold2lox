@@ -18,6 +18,8 @@ $authorizeUrl = "https://auth.boldsmartlock.com/?client_id=BoldApp"
 <div class="ui-content">
     <p><?= $L['LOGIN.INTRO'] ?></p>
 
+    <div class="diag-step bad"><span class="mark">!</span><span class="detail"><?= $L['LOGIN.USER_WARNING'] ?></span></div>
+
     <div class="login-step">
         <h2><?= $L['LOGIN.STEP1'] ?></h2>
         <p><a href="<?= htmlspecialchars($authorizeUrl) ?>" target="_blank" rel="noopener"
