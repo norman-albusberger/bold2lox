@@ -114,7 +114,7 @@ IP, trigger secret and UDP port, so finish the setup first. Two files, because o
 | `bin/bold2lox-daemon`               | `$LBPBIN/bold2lox/` – status poller (systemd)               |
 | `webfrontend/htmlauth/*`            | Web UI (Overview/Login/Settings/About)                      |
 | `webfrontend/html/activate.php`     | **unauth.** trigger for the Miniserver                      |
-| `data/settings.json`                | `$LBPDATA/bold2lox/` – runtime config (tokens etc.)         |
+| `data/settings.default.json`        | template → `$LBPDATA/bold2lox/settings.json` (tokens etc.)  |
 | `templates/lang/language_en.ini`    | Language file                                               |
 
 ## Design decisions
