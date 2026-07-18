@@ -1,37 +1,37 @@
 #!/usr/bin/env python3
 """
-bold2lox – Bruecke zwischen Loxone Miniserver (Gen 1) und Bold Smart Lock.
+bold2lox – bridge between a Loxone Miniserver (Gen 1) and a Bold Smart Lock.
 
-Der Miniserver kann nur einfache lokale HTTP-GETs (Virtual Output) und schwaches
-TLS. Diese Bruecke uebernimmt HTTPS + OAuth2 gegen die Bold-Cloud und schiebt den
-Status per UDP an einen Virtual UDP Input im Miniserver zurueck.
+The Miniserver can only do simple local HTTP GETs (Virtual Output) and weak TLS.
+This bridge handles HTTPS + OAuth2 against the Bold cloud and pushes status back
+to a Virtual UDP Input on the Miniserver.
 
-Authentifizierung (OAuth2, set-and-forget):
-  Der Engine haelt access_token + refresh_token. Laeuft der (kurzlebige)
-  access_token ab, wird er automatisch am Token-Endpoint erneuert
-  (grant_type=refresh_token). Neue Tokens werden zurueck in settings.json
-  geschrieben. Endpoints bestaetigt aus lwestenberg/homeassistant_bold:
+Authentication (OAuth2, set-and-forget):
+  The engine holds access_token + refresh_token. When the (short-lived) access
+  token expires it is refreshed automatically at the token endpoint
+  (grant_type=refresh_token). New tokens are written back to settings.json.
+  Endpoints:
     Token:  https://api.boldsmartlock.com/v2/oauth/token
-    API:    https://api.boldsmartlock.com/v1/...
+    API:    https://api.boldsmartlock.com/{v1,v2}/...
       POST /v1/devices/{id}/remote-activation
       POST /v1/devices/{id}/remote-deactivation
-      GET  /v1/effective-device-permissions
+      GET  /v2/effective-device-permissions
       GET  /v1/gateways/{id}/current-status
 
-Aufruf:
-  bold_engine.py activate            # Schloss ausloesen (momentan)
+Usage:
+  bold_engine.py activate            # trigger the lock (momentary)
   bold_engine.py deactivate
-  bold_engine.py status              # Status holen und per UDP an den Miniserver
-  bold_engine.py discover [--json]   # device_id / gateway_id auflisten (fuer die Web-UI)
-  bold_engine.py token               # Token erneuern/pruefen (Diagnose)
-  bold_engine.py diagnose            # Schritt-fuer-Schritt-Check (Token/Geraete/Gateway)
+  bold_engine.py status              # fetch status and push it via UDP to the Miniserver
+  bold_engine.py discover [--json]   # list device_id / gateway_id (for the web UI)
+  bold_engine.py token               # refresh/check the token (diagnostic)
+  bold_engine.py diagnose            # step-by-step check (token / devices / gateway)
 
-Bootstrap-Login (OAuth2 Authorization Code, Payload als JSON ueber stdin):
-  # Browser-Login: https://auth.boldsmartlock.com/?client_id=BoldApp&redirect_uri=boldsmartlock://auth&response_type=code
-  # Danach den Code aus der boldsmartlock://auth?code=... Redirect-URL nehmen:
+Bootstrap login (OAuth2 authorization code, payload as JSON on stdin):
+  # Browser login: https://auth.boldsmartlock.com/?client_id=BoldApp&redirect_uri=boldsmartlock://auth&response_type=code
+  # Then take the code from the boldsmartlock://auth?code=... redirect URL:
   echo '{"code":"boldsmartlock://auth?code=..."}'    | bold_engine.py login-exchange
 
-Konfiguration: settings.json (Pfad via $BOLD2LOX_SETTINGS oder Standardpfad).
+Configuration: settings.json (path via $BOLD2LOX_SETTINGS or the default path).
 """
 import json
 import os
@@ -51,15 +51,15 @@ DEFAULT_TOKEN_URL = "https://api.boldsmartlock.com/v2/oauth/token"
 DEFAULT_API_BASE = "https://api.boldsmartlock.com/v1"
 DEFAULT_API_BASE_V2 = "https://api.boldsmartlock.com/v2"
 DEFAULT_AUTH_BASE = "https://api.boldsmartlock.com/v2"
-# Bold device-type ids (aus der Lib): 1 = Schloss, 2 = Gateway (Bold Connect).
+# Bold device-type ids (from the lib): 1 = lock, 2 = gateway (Bold Connect).
 DEVICE_TYPE_LOCK = 1
 DEVICE_TYPE_GATEWAY = 2
-# Feste Client-Credentials der Bold-App fuer den Legacy-Login (username/password +
-# SMS/E-Mail-Code). Oeffentlich bekannt/aus der App; erlaubt Bootstrap ohne eigene
-# OAuth-Registrierung. Quelle: StefanNienhuis/homebridge-bold.
+# Fixed client credentials of the Bold app. Publicly known / from the app; they let
+# the bootstrap login work without registering our own OAuth client, and are used both
+# for the authorization-code exchange and for refresh. Source: StefanNienhuis/homebridge-bold.
 LEGACY_CLIENT_ID = "BoldApp"
 LEGACY_CLIENT_SECRET = "pgJFgnGB87f9ednFiiHygCbf"
-# Sicherheitspuffer: Token vor Ablauf erneuern.
+# Safety margin: refresh the token before it expires.
 EXPIRY_SKEW_SECONDS = 60
 
 
@@ -69,7 +69,7 @@ def load_settings():
 
 
 def save_settings(cfg):
-    """Atomar zurueckschreiben (erneuerte Tokens persistieren)."""
+    """Write back atomically (persist refreshed tokens)."""
     tmp = SETTINGS_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(cfg, fh, indent=2, ensure_ascii=False)
@@ -81,18 +81,16 @@ def _short(text, limit=400):
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-# Bold weist den Password-Grant mit "OldAppVersion" ab, wenn der User-Agent keine
-# aktuelle App-Version traegt. Die App-Version steckt IM User-Agent (z. B.
-# "Bold/1172" = iOS-Build 1172); einen separaten Versions-Header gibt es nicht.
-# Default = echter, aktueller App-UA (aus einem Live-Mitschnitt der iOS-App).
-# Wird Bold die Mindestversion irgendwann anheben, hier bzw. im UI-Feld
-# "auth_user_agent" die aktuelle Build-Nummer nachziehen. Zusatz-Header via
-# "auth_headers".
+# Bold rejects requests with "OldAppVersion" when the User-Agent carries no current
+# app version. The version is IN the User-Agent (e.g. "Bold/1172" = iOS build 1172);
+# there is no separate version header. Default = the real, current app UA (from a live
+# capture of the iOS app). If Bold ever raises the minimum version, bump the build
+# number here or in the "auth_user_agent" UI field. Extra headers via "auth_headers".
 DEFAULT_USER_AGENT = "Bold/1172 CFNetwork/3860.700.1 Darwin/25.6.0"
 
 
 def _with_common_headers(cfg, headers):
-    """Ergaenzt User-Agent + konfigurierte Zusatz-Header (fuer alle Bold-Calls)."""
+    """Add the User-Agent + configured extra headers (for all Bold calls)."""
     merged = dict(headers)
     merged.setdefault("User-Agent", cfg.get("auth_user_agent") or DEFAULT_USER_AGENT)
     for key, val in (cfg.get("auth_headers") or {}).items():
@@ -101,8 +99,8 @@ def _with_common_headers(cfg, headers):
 
 
 def _raw_request(url, method, headers, data, timeout):
-    """Roher HTTP-Aufruf, der Fehlerbodies zurueckgibt statt zu werfen –
-    damit der Login-Wizard Bold-Fehlermeldungen anzeigen kann."""
+    """Raw HTTP call that returns error bodies instead of raising, so the login
+    wizard can display Bold's error messages."""
     req = urllib.request.Request(url, data=data, method=method)
     for key, val in headers.items():
         req.add_header(key, val)
@@ -116,7 +114,7 @@ def _raw_request(url, method, headers, data, timeout):
 
 
 # --------------------------------------------------------------------------- #
-# OAuth2 Token-Handling
+# OAuth2 token handling
 # --------------------------------------------------------------------------- #
 
 def _bold(cfg):
@@ -124,8 +122,8 @@ def _bold(cfg):
 
 
 def _refresh_access_token(cfg):
-    """Tauscht den refresh_token gegen einen frischen access_token und
-    persistiert das Ergebnis. Gibt den neuen access_token zurueck."""
+    """Exchange the refresh_token for a fresh access_token and persist the result.
+    Returns the new access_token."""
     bold = _bold(cfg)
     token_url = cfg.get("token_url", DEFAULT_TOKEN_URL)
     missing = [k for k in ("client_id", "client_secret", "refresh_token") if not bold.get(k)]
@@ -163,7 +161,7 @@ def _refresh_access_token(cfg):
         raise SystemExit("Token endpoint returned no access_token: " + json.dumps(payload))
     bold["access_token"] = access
     bold["access_token_expiry"] = int(time.time()) + int(payload.get("expires_in", 3600))
-    # Manche Provider rotieren den refresh_token bei jedem Refresh mit.
+    # Some providers rotate the refresh_token on every refresh.
     if payload.get("refresh_token"):
         bold["refresh_token"] = payload["refresh_token"]
     save_settings(cfg)
@@ -171,7 +169,7 @@ def _refresh_access_token(cfg):
 
 
 def get_access_token(cfg, force=False):
-    """Liefert einen gueltigen access_token; erneuert bei Bedarf automatisch."""
+    """Return a valid access_token; refresh automatically when needed."""
     bold = _bold(cfg)
     now = int(time.time())
     if (not force
@@ -199,7 +197,7 @@ def api_request(cfg, method, path, base=None, _retry=True):
             body = resp.read().decode("utf-8") or "{}"
             return resp.status, json.loads(body)
     except urllib.error.HTTPError as exc:
-        # 401 trotz frischem Token -> einmal erzwungenen Refresh versuchen.
+        # 401 despite a fresh token -> try one forced refresh.
         if exc.code == 401 and _retry:
             get_access_token(cfg, force=True)
             return api_request(cfg, method, path, base=base, _retry=False)
@@ -214,7 +212,7 @@ def api_request(cfg, method, path, base=None, _retry=True):
 
 
 def send_udp(cfg, lines):
-    """Schickt 'key=value'-Zeilen an den Virtual UDP Input des Miniservers."""
+    """Send 'key=value' lines to the Miniserver's Virtual UDP Input."""
     ms = cfg.get("miniserver") or {}
     ip, port = ms.get("ip"), ms.get("udp_port")
     if not ip or not port:
@@ -243,8 +241,8 @@ def cmd_activate(cfg, deactivate=False):
 
 
 def _v2_devices(perms):
-    """v2 /effective-device-permissions: Liste von {permissions, device}.
-    Liefert je (id, name, type_id)."""
+    """v2 /effective-device-permissions: list of {permissions, device}.
+    Yields (id, name, type_id)."""
     if not isinstance(perms, list):
         return
     for entry in perms:
@@ -259,7 +257,7 @@ def _fetch_permissions(cfg):
 
 
 def _detect_gateway_id(cfg):
-    """Sucht das Gateway (Bold Connect, Typ 2) in den Permissions."""
+    """Find the gateway (Bold Connect, type 2) in the permissions."""
     _, perms = _fetch_permissions(cfg)
     for dev_id, _name, type_id in _v2_devices(perms):
         if type_id == DEVICE_TYPE_GATEWAY:
@@ -282,7 +280,7 @@ def cmd_discover(cfg, as_json=False):
     _, perms = _fetch_permissions(cfg)
     parsed = list(_v2_devices(perms))
     gateway_id = next((i for i, _n, t in parsed if t == DEVICE_TYPE_GATEWAY), 0)
-    # Schloesser (Typ 1) sind auswaehlbar; unbekannter Typ wird als Schloss gewertet.
+    # Locks (type 1) are selectable; an unknown type is treated as a lock.
     devices = [
         {"id": i, "name": n, "gatewayId": gateway_id}
         for i, n, t in parsed if t != DEVICE_TYPE_GATEWAY
@@ -298,7 +296,7 @@ def cmd_discover(cfg, as_json=False):
 
 
 def cmd_token(cfg):
-    """Diagnose: erzwingt einen Refresh und meldet die Restlaufzeit."""
+    """Diagnostic: force a refresh and report the remaining lifetime."""
     get_access_token(cfg, force=True)
     remaining = _bold(cfg).get("access_token_expiry", 0) - int(time.time())
     print(json.dumps({"ok": True, "expires_in_seconds": remaining}))
@@ -306,12 +304,11 @@ def cmd_token(cfg):
 
 
 def cmd_diagnose(cfg):
-    """Prueft Zugang Schritt fuer Schritt und meldet je Schritt ok + Detail –
-    damit man vor der Loxone-Config sofort sieht, woran es haengt. Loest das
-    Schloss NICHT aus."""
+    """Check access step by step, reporting ok + detail per step, so you can see
+    what's wrong before touching the Loxone config. Does NOT trigger the lock."""
     steps = []
 
-    # 1) Token aus den Zugangsdaten erneuern
+    # 1) refresh the token from the credentials
     try:
         get_access_token(cfg, force=True)
         rem = _bold(cfg).get("access_token_expiry", 0) - int(time.time())
@@ -320,9 +317,9 @@ def cmd_diagnose(cfg):
     except SystemExit as exc:
         steps.append({"name": "Credentials / token", "ok": False, "detail": str(exc)})
         print(json.dumps({"ok": False, "steps": steps}))
-        return 1  # ohne Token keine weiteren Schritte moeglich
+        return 1  # without a token no further steps are possible
 
-    # 2) Geraeteliste – ist das gewaehlte Schloss sichtbar?
+    # 2) device list - is the chosen lock visible?
     try:
         _, perms = _fetch_permissions(cfg)
         parsed = list(_v2_devices(perms))
@@ -334,7 +331,7 @@ def cmd_diagnose(cfg):
     except SystemExit as exc:
         steps.append({"name": "Device list", "ok": False, "detail": str(exc)})
 
-    # 3) Bold Connect erreichbar?
+    # 3) is the Bold Connect reachable?
     try:
         gw_id = _gateway_id(cfg)
         if not gw_id:
@@ -353,20 +350,20 @@ def cmd_diagnose(cfg):
 
 
 # --------------------------------------------------------------------------- #
-# Bootstrap-Login (OAuth2 Authorization Code, wie die aktuelle Bold-App)
+# Bootstrap login (OAuth2 authorization code, like the current Bold app)
 # --------------------------------------------------------------------------- #
-# Flow: Nutzer meldet sich im Browser an unter
+# Flow: the user signs in in the browser at
 #   https://auth.boldsmartlock.com/?client_id=BoldApp&redirect_uri=boldsmartlock://auth&response_type=code
-# Bold leitet auf  boldsmartlock://auth?code=<CODE>  um. Der Code wird hier gegen
+# Bold redirects to  boldsmartlock://auth?code=<CODE>. The code is exchanged here for
 # access/refresh getauscht. Client-Credentials = feste BoldApp-Werte -> Refresh
-# danach self-contained mit denselben Credentials.
+# afterwards self-contained with the same credentials.
 
 BOLD_REDIRECT_URI = "boldsmartlock://auth"
 
 
 def _extract_code(raw):
-    """Akzeptiert entweder den nackten Code oder die volle
-    'boldsmartlock://auth?code=...'-Redirect-URL."""
+    """Accept either the bare code or the full
+    'boldsmartlock://auth?code=...' redirect URL."""
     raw = (raw or "").strip()
     if "code=" in raw:
         raw = raw.split("code=", 1)[1].split("&", 1)[0]
@@ -374,8 +371,8 @@ def _extract_code(raw):
 
 
 def cmd_login_exchange(cfg, payload):
-    """Tauscht den Authorization-Code gegen access/refresh und legt sie samt der
-    BoldApp-Client-Credentials in settings.json ab."""
+    """Exchange the authorization code for access/refresh and store them, together
+    with the BoldApp client credentials, in settings.json."""
     code = _extract_code(payload.get("code", ""))
     if not code:
         print(json.dumps({"ok": False, "detail": "no code provided"}))
@@ -421,7 +418,7 @@ def main(argv):
         return 2
     cfg = load_settings()
     if action in login_actions:
-        payload = json.load(sys.stdin)  # Code kommt ueber stdin, nicht argv
+        payload = json.load(sys.stdin)  # code comes via stdin, not argv
         if action == "login-exchange":
             return cmd_login_exchange(cfg, payload)
     if action == "activate":
