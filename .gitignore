@@ -1,6 +1,6 @@
-# Hinweis: data/settings.json ist die AUSGELIEFERTE Vorlage (Token leer) und
-# wird bewusst versioniert. Der echte Token liegt zur Laufzeit unter
-# $LBPDATA/plugins/bold2lox/settings.json auf dem LoxBerry, nicht im Repo.
+# Note: data/settings.default.json is the SHIPPED template (empty tokens) and is
+# versioned on purpose. The live settings.json with real tokens is created at
+# runtime under $LBPDATA/bold2lox/ on the LoxBerry and never lives in this repo.
 
 # Python
 __pycache__/

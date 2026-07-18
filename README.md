@@ -22,6 +22,24 @@ Install as a LoxBerry plugin (ZIP via the LoxBerry plugin manager, or auto-updat
 
 Requirements: LoxBerry ≥ 3.0, a **Bold Connect** in the home, and a **Bold account**.
 
+## Updates
+
+LoxBerry checks `release.cfg` in this repo and offers the new version when its
+`VERSION` is higher than the installed one. In the LoxBerry plugin manager you can
+choose the update mode per plugin (notify only, install releases, or also
+prereleases).
+
+**Your configuration survives updates.** LoxBerry copies `data/*` over the plugin's
+data folder on every update, so the shipped file is deliberately named
+`settings.default.json` – the live `settings.json` is never overwritten. On install
+and update, `postinstall.sh` makes sure `settings.json` exists and gains any **new**
+default keys, while keeping every value you configured (tokens, device/gateway id,
+trigger secret, Miniserver IP). A corrupt settings file is kept as
+`settings.json.broken` instead of being silently replaced.
+
+Releasing a new version: bump `VERSION` in `plugin.cfg` **and** `release.cfg`, point
+`ARCHIVEURL` at the new tag, then create that git tag / GitHub release.
+
 ## Setup (LoxBerry web menu → bold2lox)
 
 1. **Login** tab: "Open Bold login" → sign in in the browser → paste the
