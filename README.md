@@ -57,7 +57,7 @@ Releasing a new version: bump `VERSION` in `plugin.cfg` **and** `release.cfg`, p
    **Miniserver IP** + **UDP port**, and save.
 3. Under **Test connection**, run "Run diagnosis" (checks token / device / Bold Connect)
    and optionally "Open lock now (test)".
-4. On **Overview**, download the ready-made Loxone templates or copy the Virtual Output URLs.
+4. On **Overview**, download the ready-made Loxone template or copy the Virtual Output URL.
 
 ## Authentication (OAuth2, set-and-forget)
 
@@ -101,13 +101,10 @@ the remaining lifetime.
 
 ## Loxone Config
 
-**Easiest – ready-made `.LxAddOn` templates** (Overview tab → downloads), imported in
-Loxone Config via **"Device Templates → Import template…"**. They are pre-filled with your
-IP, trigger secret and UDP port, so finish the setup first. Two files, because one
-`.LxAddOn` can only contain inputs **or** outputs:
-
-- `bold2lox-output.LxAddOn` – Virtual Output: trigger the lock (open/close)
-- `bold2lox-status.LxAddOn` – Virtual UDP Input: status
+**Easiest – the ready-made `.LxAddOn` template** (Overview tab → download), imported in
+Loxone Config via **"Device Templates → Import template…"**. It is pre-filled with your
+LoxBerry address and trigger secret, so finish the setup first, then just connect it to a
+push-button: `bold2lox-output.LxAddOn` – Virtual Output that triggers the lock.
 
 **Or by hand:**
 
@@ -122,7 +119,12 @@ moment and releases by itself, so nothing stays open that could be closed. (The 
 `remote-deactivation` only ends a permanent "keep active" state, which this plugin
 never sets – `bold_engine.py deactivate` exists for completeness only.)
 
-*Feedback (status → app):*
+*Optional feedback (status → app):*
+
+There is **no template for this** – the signals are thin (Loxone already knows it pressed
+the button, and Bold offers no door-state events), so it is not worth an import. The
+plugin still sends the values via UDP, so wire them up by hand if you want them:
+
 1. **Virtual UDP Input** on the port chosen in Settings.
 2. Command-recognition entries:
 

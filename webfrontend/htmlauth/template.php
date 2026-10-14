@@ -1,14 +1,15 @@
 <?php
 /**
- * bold2lox – generate Loxone Config templates (.LxAddOn) for download.
+ * bold2lox – generate the Loxone Config template (.LxAddOn) for download.
  *
- *   template.php?type=vo   Virtual Output: trigger the lock (open/close)
- *   template.php?type=vi   Virtual UDP Input: status
+ * Produces the Virtual Output that triggers the lock. A .LxAddOn is a ZIP of
+ * <name>.xml + desc.json; the XML carries an <Info templateType="3"/> and a
+ * UTF-8 BOM (templateType 3 = Virtual Output).
  *
- * Format follows real Loxone Library templates: a .LxAddOn is a ZIP of
- * <name>.xml + desc.json. The XML carries an <Info templateType=".."/> and a
- * UTF-8 BOM. templateType: "3" = Virtual Output, "2" = Virtual Input.
- * One file can only contain inputs OR outputs -> two files.
+ * There is no UDP-input template: the only signals we could offer are "did my own
+ * trigger succeed" and the Bold Connect status, and the latter needs gateway access
+ * that a dedicated plugin user usually does not have. The plugin still sends those
+ * values via UDP, so they can be wired up by hand if wanted (see README).
  */
 require_once "loxberry_system.php";
 require_once "Bold.php";
@@ -19,57 +20,36 @@ const LX_BOM = "\xEF\xBB\xBF";
 $bold = new Bold();
 $settings = $bold->readSettings();
 
-$ip      = $_SERVER['SERVER_ADDR'] ?? 'LOXBERRY-IP';
-$secret  = $settings['trigger_secret'] ?? '';
-$udpPort = (int)($settings['miniserver']['udp_port'] ?? 4001);
+$ip     = $_SERVER['SERVER_ADDR'] ?? 'LOXBERRY-IP';
+$secret = $settings['trigger_secret'] ?? '';
 
-$type = $_GET['type'] ?? 'vo';
-$enc  = ENT_XML1 | ENT_QUOTES;
+$enc = ENT_XML1 | ENT_QUOTES;
 $a = fn($s) => htmlspecialchars((string)$s, $enc);
 
 // The output needs the trigger secret in the URL – otherwise the template
 // would be broken (activate.php returns 403). Only serve it once configured.
-if ($type !== 'vi' && $secret === '') {
+if ($secret === '') {
     http_response_code(409);
     header('Content-Type: text/plain; charset=utf-8');
     echo 'Set the trigger secret in Settings first.';
     exit;
 }
 
-if ($type === 'vi') {
-    $name = 'bold2lox-status';
-    $templateType = '2';
-    $rows = [
-        ['Bold Connect online',   'bold_gateway_online=\v'],
-        ['Last activation OK',    'bold_action_ok=\v'],
-        ['Last activation (time)', 'bold_last_action=\v'],
-    ];
-    $xml  = LX_BOM . '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
-    $xml .= '<VirtualInUdp Title="Bold Smart Lock Status" Comment="bold2lox" Address="" Port="' . $udpPort . '">' . "\r\n";
-    $xml .= "\t" . '<Info templateType="' . $templateType . '" minVersion="' . LX_MIN_VERSION . '"/>' . "\r\n";
-    foreach ($rows as $r) {
-        $xml .= "\t" . '<VirtualInUdpCmd Title="' . $a($r[0]) . '" Comment="" Address="" '
-              . 'Check="' . $a($r[1]) . '" Signed="true" Analog="true" '
-              . 'SourceValLow="0" DestValLow="0" SourceValHigh="100" DestValHigh="100" '
-              . 'DefVal="0" MinVal="-2147483647" MaxVal="2147483647"/>' . "\r\n";
-    }
-    $xml .= '</VirtualInUdp>' . "\r\n";
-} else {
-    $name = 'bold2lox-output';
-    $templateType = '3';
-    $cmdOpen = '/plugins/bold2lox/activate.php?key=' . rawurlencode($secret) . '&cmd=open';
-    $xml  = LX_BOM . '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
-    $xml .= '<VirtualOut Title="Bold Smart Lock" Comment="bold2lox" Address="' . $a("http://$ip") . '" '
-          . 'CmdInit="" CloseAfterSend="true" CmdSep="">' . "\r\n";
-    $xml .= "\t" . '<Info templateType="' . $templateType . '" minVersion="' . LX_MIN_VERSION . '"/>' . "\r\n";
-    // Momentary only: the cylinder re-engages by itself, so there is no "close"
-    // counterpart. Drive this from a push-button (Taster) in Loxone.
-    $xml .= "\t" . '<VirtualOutCmd Title="Open lock" Comment="bold2lox" '
-          . 'CmdOnMethod="GET" CmdOn="' . $a($cmdOpen) . '" CmdOnHTTP="" CmdOnPost="" '
-          . 'CmdOffMethod="GET" CmdOff="" CmdOffHTTP="" CmdOffPost="" CmdAnswer="" '
-          . 'Analog="false" Repeat="0" RepeatRate="0"/>' . "\r\n";
-    $xml .= '</VirtualOut>' . "\r\n";
-}
+$name = 'bold2lox-output';
+$templateType = '3';
+$cmdOpen = '/plugins/bold2lox/activate.php?key=' . rawurlencode($secret) . '&cmd=open';
+
+$xml  = LX_BOM . '<?xml version="1.0" encoding="utf-8"?>' . "\r\n";
+$xml .= '<VirtualOut Title="Bold Smart Lock" Comment="bold2lox" Address="' . $a("http://$ip") . '" '
+      . 'CmdInit="" CloseAfterSend="true" CmdSep="">' . "\r\n";
+$xml .= "\t" . '<Info templateType="' . $templateType . '" minVersion="' . LX_MIN_VERSION . '"/>' . "\r\n";
+// Momentary only: the cylinder re-engages by itself, so there is no "close"
+// counterpart. Drive this from a push-button (Taster) in Loxone.
+$xml .= "\t" . '<VirtualOutCmd Title="Open lock" Comment="bold2lox" '
+      . 'CmdOnMethod="GET" CmdOn="' . $a($cmdOpen) . '" CmdOnHTTP="" CmdOnPost="" '
+      . 'CmdOffMethod="GET" CmdOff="" CmdOffHTTP="" CmdOffPost="" CmdAnswer="" '
+      . 'Analog="false" Repeat="0" RepeatRate="0"/>' . "\r\n";
+$xml .= '</VirtualOut>' . "\r\n";
 
 $desc = json_encode([
     "type" => "template",

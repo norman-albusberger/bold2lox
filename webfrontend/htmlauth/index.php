@@ -52,15 +52,9 @@ $openUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=open";
     <h2><?= $L['OVERVIEW.TEMPLATES'] ?></h2>
     <p class="hint"><?= $L['OVERVIEW.TEMPLATES_HELP'] ?></p>
     <?php if ($configComplete): ?>
-        <p>
-            <a href="template.php?type=vo" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VO'] ?></a>
-            <a href="template.php?type=vi" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VI'] ?></a>
-        </p>
+        <p><a href="template.php" class="ui-btn ui-btn-a ui-corner-all ui-btn-inline"><?= $L['OVERVIEW.TEMPLATE_VO'] ?></a></p>
     <?php else: ?>
-        <p>
-            <button class="ui-btn ui-btn-a ui-corner-all ui-btn-inline" disabled><?= $L['OVERVIEW.TEMPLATE_VO'] ?></button>
-            <button class="ui-btn ui-btn-a ui-corner-all ui-btn-inline" disabled><?= $L['OVERVIEW.TEMPLATE_VI'] ?></button>
-        </p>
+        <p><button class="ui-btn ui-btn-a ui-corner-all ui-btn-inline" disabled><?= $L['OVERVIEW.TEMPLATE_VO'] ?></button></p>
         <div class="diag-step bad"><span class="mark">✗</span><span class="detail"><?= $L['OVERVIEW.TEMPLATES_LOCKED'] ?></span></div>
     <?php endif; ?>
 
