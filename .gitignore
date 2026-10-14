@@ -10,3 +10,6 @@ venv/
 
 # IDE
 .idea/
+
+# macOS (would otherwise end up in every release ZIP)
+.DS_Store
