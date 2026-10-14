@@ -45,6 +45,10 @@ Domain rules that must not regress:
   - Keepalive: `cmd_keepalive` refreshes once the last refresh is older than
     `keepalive_hours`. After a network error it waits 15 min, and after `invalid_grant`
     it stops (`relogin_required`) until the next login.
+  - Bold access tokens live **24 h** (`expires_in=86400`, seen on a real LoxBerry on
+    2026-10-14). The engine's 3600 s default only applies if Bold omits `expires_in`.
+    So a broken refresh token can stay hidden for up to a day of normal use. The
+    12 h keepalive brings that down to about 12 h.
 - **No "close" output for Loxone**: the cylinder releases by itself. The trigger is momentary.
 - **The gateway (Bold Connect) is optional**: 403 or missing id means "skipped", not "failed".
 - Loxone timestamps are seconds since 2009-01-01 (`LOXONE_EPOCH_OFFSET`).
