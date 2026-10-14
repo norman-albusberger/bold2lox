@@ -20,17 +20,31 @@ Status:   bold2lox.service (bin/bold2lox-daemon, systemd) → UDP → Miniserver
 
 | Component | Role |
 |---|---|
-| `bin/bold_engine.py` | Core logic, **Python stdlib only** (no pip). CLI: `activate`, `deactivate`, `status`, `discover [--json]`, `token`, `diagnose`, `login-exchange` (JSON on stdin). Prints JSON for the web UI. |
-| `bin/bold2lox-daemon` | Poll loop → `cmd_status` → UDP. Runs as a systemd unit that `postroot.sh` creates. |
+| `bin/bold_engine.py` | Core logic, **Python stdlib only** (no pip). CLI: `activate`, `deactivate`, `status`, `discover [--json]`, `token`, `diagnose`, `keepalive`, `login-exchange` (JSON on stdin). Prints JSON for the web UI. |
+| `bin/bold2lox-daemon` | Loop: `cmd_keepalive` (token refresh every `keepalive_hours`, independent of the gateway), then `cmd_status` → UDP. Runs as a systemd unit that `postroot.sh` creates. |
 | `webfrontend/htmlauth/*.php` | Admin UI (LoxBerry auth): Overview, Login, Settings, About. `Bold.php` wraps `settings.json` and the engine. |
 | `webfrontend/html/activate.php` | **Unauthenticated** trigger for the Miniserver, protected only by `trigger_secret` (`hash_equals`). |
 | `data/settings.default.json` | Shipped template. The live `settings.json` (tokens!) only exists on the LoxBerry and never in git. |
 | `templates/lang/language_en.ini` | UI strings (English only; `readlanguage` falls back to `en`). |
 
 Domain rules that must not regress:
-- **Bold rotates the refresh token on every refresh.** Refreshes are serialised with
-  `flock` on `settings.json.lock` and re-read from disk (see `_refresh_access_token`).
-  Never add a second refresh path that skips this.
+- **Bold rotates the refresh token on every refresh**, so any older copy is dead.
+  - Tokens and token state (`bold.client_id`, `client_secret`, `refresh_token`,
+    `access_token`, `access_token_expiry`, `account_id`, `token_refreshed_at`,
+    `relogin_required`, `last_error`, `last_error_at`) are **engine-owned**. Only
+    `bold_engine.py` (login, refresh) writes them. They never go through a browser form, and
+    `Bold::saveSettings` strips them. A form that posted them back used to lock the
+    plugin out (InvalidRefreshToken).
+  - Every read-modify-write of `settings.json` holds `settings.json.lock`
+    (`settings_lock()` in Python, `flock` in `Bold::saveSettings`; both are flock(2)),
+    re-reads the file inside the lock, and writes atomically with mode 0600 (the
+    engine also `fsync`s). Never add a writer that skips this.
+  - Every token event goes through `auth_log()` into `auth.log` next to `settings.json`
+    (fingerprints only, never tokens; logging must never raise). `preupgrade.sh` and
+    `postinstall.sh` carry it across updates. Keep new token paths logged.
+  - Keepalive: `cmd_keepalive` refreshes once the last refresh is older than
+    `keepalive_hours`. After a network error it waits 15 min, and after `invalid_grant`
+    it stops (`relogin_required`) until the next login.
 - **No "close" output for Loxone**: the cylinder releases by itself. The trigger is momentary.
 - **The gateway (Bold Connect) is optional**: 403 or missing id means "skipped", not "failed".
 - Loxone timestamps are seconds since 2009-01-01 (`LOXONE_EPOCH_OFFSET`).

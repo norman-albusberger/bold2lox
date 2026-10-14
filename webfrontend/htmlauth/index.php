@@ -4,7 +4,7 @@ require_once "loxberry_web.php";
 require_once "Bold.php";
 
 $L = LBSystem::readlanguage("language.ini");
-$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=5'>";
+$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=6'>";
 
 $bold = new Bold();
 $settings = $bold->readSettings();
@@ -17,6 +17,7 @@ $server_ip = $_SERVER['SERVER_ADDR'] ?? 'LOXBERRY-IP';
 $secret    = $settings['trigger_secret'] ?? '';
 $udpPort   = $settings['miniserver']['udp_port'] ?? 4001;
 $hasToken  = !empty($settings['bold']['refresh_token']);
+$relogin   = $hasToken && !empty($settings['bold']['relogin_required']);
 $hasDevice = !empty($settings['bold']['device_id']);
 $configComplete = $hasToken && $hasDevice && $secret !== '';
 
@@ -29,8 +30,9 @@ $openUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=open";
 
     <h2><?= $L['OVERVIEW.STATUS'] ?></h2>
     <ul class="bold-status">
-        <li class="<?= $hasToken ? 'ok' : 'bad' ?>">
-            <?= $hasToken ? $L['OVERVIEW.TOKEN_OK'] : $L['OVERVIEW.TOKEN_MISSING'] ?>
+        <li class="<?= $hasToken && !$relogin ? 'ok' : 'bad' ?>">
+            <?= $relogin ? $L['OVERVIEW.TOKEN_RELOGIN']
+                : ($hasToken ? $L['OVERVIEW.TOKEN_OK'] : $L['OVERVIEW.TOKEN_MISSING']) ?>
         </li>
         <li class="<?= $hasDevice ? 'ok' : 'bad' ?>">
             Device ID: <?= htmlspecialchars((string)($settings['bold']['device_id'] ?? '–')) ?>
@@ -67,5 +69,5 @@ $openUrl = $baseUrl . "?key=" . rawurlencode($secret) . "&cmd=open";
     <pre id="testResult" class="test-result"></pre>
 </div>
 
-<script src='assets/index.js?v=4'></script>
+<script src='assets/index.js?v=5'></script>
 <?php LBWeb::lbfooter(); ?>

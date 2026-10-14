@@ -35,17 +35,72 @@ class Bold
     }
 
     /**
-     * Save settings (recursively merged so nested
-     * defaults are preserved).
+     * Keys only the engine writes (login + refresh). Bold rotates the refresh token
+     * on every refresh, so any copy that went through a browser form is stale by
+     * definition, and writing it back locks the plugin out (InvalidRefreshToken).
+     */
+    private const ENGINE_OWNED_BOLD_KEYS = [
+        'client_id', 'client_secret', 'refresh_token',
+        'access_token', 'access_token_expiry', 'account_id',
+        'token_refreshed_at', 'relogin_required', 'last_error', 'last_error_at',
+    ];
+
+    /**
+     * Last $max lines of auth.log (token events written by the engine), newest first.
+     *
+     * @return string[]
+     */
+    public function authLog(int $max = 30): array
+    {
+        $path = dirname($this->settingsPath) . '/auth.log';
+        if (!is_readable($path)) {
+            return [];
+        }
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        return array_reverse(array_slice($lines, -$max));
+    }
+
+    /**
+     * Save settings (recursively merged so nested defaults are preserved).
+     *
+     * Holds the same lock as bold_engine.py (settings.json.lock, flock(2) on both
+     * sides) and re-reads the file inside it, so a token the engine just rotated is
+     * never overwritten. Written atomically via a temp file; keeps mode 0600 because
+     * the file holds tokens.
      */
     public function saveSettings(array $newSettings): bool
     {
-        $merged = array_replace_recursive($this->readSettings(), $newSettings);
-        $result = file_put_contents(
-            $this->settingsPath,
-            json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
-        );
-        return $result !== false;
+        foreach (self::ENGINE_OWNED_BOLD_KEYS as $key) {
+            unset($newSettings['bold'][$key]);
+        }
+
+        $lock = fopen($this->settingsPath . '.lock', 'c');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            return false;
+        }
+        try {
+            $current = [];
+            if (file_exists($this->settingsPath)) {
+                $current = json_decode(file_get_contents($this->settingsPath), true);
+                if (!is_array($current)) {
+                    // Unreadable file: refuse rather than replace it with one that
+                    // has no tokens.
+                    return false;
+                }
+            }
+            $merged = array_replace_recursive($current, $newSettings);
+
+            $tmp = $this->settingsPath . '.tmp';
+            $json = json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            if ($json === false || file_put_contents($tmp, $json) === false) {
+                return false;
+            }
+            chmod($tmp, 0600);
+            return rename($tmp, $this->settingsPath);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     /**

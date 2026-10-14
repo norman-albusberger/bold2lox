@@ -66,6 +66,20 @@ Bold uses **OAuth2**: a **short-lived** access token per request, renewed via a
 automatically** at the token endpoint (`grant_type=refresh_token`) when it expires — so:
 set it up once, and it keeps working.
 
+Bold hands out a **new refresh token on every refresh and invalidates the old one**.
+To keep that chain from breaking unnoticed:
+
+- **Keepalive:** the plugin's service refreshes the token at least every
+  `keepalive_hours` (default 12, `0` = off), even if the lock is never used. The refresh
+  token never sits idle, and a revoked one is noticed within hours instead of at the door.
+- **Token log:** every login and refresh is written to `auth.log` in the plugin's data
+  folder (Settings → Test connection → *Token log*). Each line records the time, what
+  triggered the refresh, the result, and a short fingerprint of the refresh token
+  (never the token itself). The log survives plugin updates.
+- When Bold rejects the refresh token (`invalid_grant`), Overview and Settings say so and
+  the keepalive stops until you log in again.
+- Tokens are only ever written by the engine, never through the Settings form.
+
 > ### ⚠️ Use a separate Bold user for the plugin
 > Bold allows only **one active session per user**. If the plugin signs in with the
 > same user as your phone, the Bold app gets logged out – and as soon as the app
@@ -96,8 +110,9 @@ short-lived, so paste it right after signing in. The `BoldApp` credentials and t
 > `OldAppVersion`); the app now uses the authorization-code flow above.
 
 If the refresh token becomes invalid (password change, revocation, long inactivity), just
-run the Login tab again. Diagnostic: `bold_engine.py token` forces a refresh and reports
-the remaining lifetime.
+run the Login tab again. The token log shows when it last worked. Diagnostics:
+`bold_engine.py token` forces a refresh and reports the remaining lifetime;
+`bold_engine.py keepalive` refreshes only if the last refresh is older than `keepalive_hours`.
 
 ## Loxone Config
 
@@ -181,4 +196,5 @@ token/refresh/login `POST /v2/oauth/token`
 - **Login tab**: OAuth sign-in (open Bold login → paste the redirect code).
 - **Settings → Test connection**: "Run diagnosis" checks token / device / Bold Connect
   step by step (without triggering); "Open lock now (test)" actually activates the lock.
-- CLI: `bold_engine.py diagnose` or `bold_engine.py token`.
+- **Settings → Test connection → Token log**: the last 30 logins/refreshes (`auth.log`).
+- CLI: `bold_engine.py diagnose`, `bold_engine.py token` or `bold_engine.py keepalive`.

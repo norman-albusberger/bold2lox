@@ -85,5 +85,15 @@ fi
 
 chmod 600 "$LIVE" 2>/dev/null   # contains tokens
 rm -f "$BACKUP" 2>/dev/null     # restored successfully, backup no longer needed
+
+# Token log: restore what preupgrade.sh rescued and note this install in it, so a
+# later token problem can be lined up with plugin updates.
+AUTHLOG="$DATADIR/auth.log"
+AUTHLOG_BACKUP="$LBHOME/data/system/${PFOLDER}_auth_backup.log"
+if [ -f "$AUTHLOG_BACKUP" ] && mv -f "$AUTHLOG_BACKUP" "$AUTHLOG" 2>/dev/null; then
+    echo "<OK> bold2lox: token log kept"
+fi
+echo "$(date '+%Y-%m-%d %H:%M:%S') plugin installed by=postinstall version=$4" >> "$AUTHLOG" 2>/dev/null
+
 echo "<OK> bold2lox: postinstall complete."
 exit 0

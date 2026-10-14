@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
-bold2lox status daemon – periodically polls the Bold gateway status and pushes it
-via UDP to the Miniserver (Virtual UDP Input). Started as a service by systemd
-(postroot.sh). Optional (only for feedback; plain control doesn't need it). Skipped
-when the token/gateway is missing (no API spam).
+bold2lox daemon – started as a service by systemd (postroot.sh). Every
+poll_interval_seconds it:
+
+1. runs the token keepalive: refreshes the Bold token once the last refresh is
+   older than keepalive_hours, so the refresh token never sits unused and a
+   revoked one shows up in auth.log within hours instead of at the door;
+2. polls the Bold gateway status and pushes it via UDP to the Miniserver
+   (optional feedback; skipped without a gateway id, so no API spam).
 """
+import json
 import os
 import sys
 import time
@@ -14,17 +19,20 @@ import bold_engine  # noqa: E402
 
 
 def main():
+    bold_engine.CALLER = "daemon"
     while True:
+        interval = 300
         try:
             cfg = bold_engine.load_settings()
-            bold_engine.cmd_status(cfg)
             interval = int(cfg.get("poll_interval_seconds", 300))
+            result = bold_engine.cmd_keepalive(cfg)
+            if "skipped" not in result:
+                print(f"[bold2lox] keepalive: {json.dumps(result)}", flush=True)
+            bold_engine.cmd_status(cfg)
         except SystemExit as exc:
-            print(f"[bold2lox] status-fehler: {exc}", flush=True)
-            interval = 300
+            print(f"[bold2lox] status error: {exc}", flush=True)
         except Exception as exc:  # noqa: BLE001
-            print(f"[bold2lox] unerwartet: {exc}", flush=True)
-            interval = 300
+            print(f"[bold2lox] unexpected: {exc}", flush=True)
         time.sleep(max(30, interval))
 
 

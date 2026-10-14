@@ -7,7 +7,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 $L = LBSystem::readlanguage("language.ini");
-$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=5'>";
+$htmlhead = "<link rel='stylesheet' type='text/css' href='assets/styles.css?v=6'>";
 
 $bold = new Bold();
 
@@ -19,11 +19,9 @@ $successMessage = "";
 $errorMessage = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $bold->saveSettings([
+    // Tokens are not part of the form - only the engine writes them.
+    $saved = $bold->saveSettings([
         'bold' => [
-            'client_id'     => trim($_POST['client_id'] ?? ''),
-            'client_secret' => trim($_POST['client_secret'] ?? ''),
-            'refresh_token' => trim($_POST['refresh_token'] ?? ''),
             'device_id'     => (int)($_POST['device_id'] ?? 0),
             'gateway_id'    => (int)($_POST['gateway_id'] ?? 0),
         ],
@@ -35,21 +33,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'poll_interval_seconds' => (int)($_POST['poll_interval'] ?? 300),
         'auth_user_agent' => trim($_POST['auth_user_agent'] ?? ''),
     ]);
-    $successMessage = $L['COMMON.SAVED'];
-
-    $result = $bold->restartService();
-    if ($result['success']) {
-        $successMessage .= "<br>" . $L['SETTINGS.RESTART_OK'];
+    if (!$saved) {
+        $errorMessage = $L['SETTINGS.SAVE_ERROR'];
     } else {
-        $errorMessage = $L['SETTINGS.RESTART_ERROR'] . "<br>" . implode("<br>", $result['output']);
+        $successMessage = $L['COMMON.SAVED'];
+
+        $result = $bold->restartService();
+        if ($result['success']) {
+            $successMessage .= "<br>" . $L['SETTINGS.RESTART_OK'];
+        } else {
+            $errorMessage = $L['SETTINGS.RESTART_ERROR'] . "<br>" . implode("<br>", $result['output']);
+        }
     }
 }
 
 $settings = $bold->readSettings();
 $connected = !empty($settings['bold']['refresh_token']);
+// Set by the engine when Bold rejected the refresh token (invalid_grant).
+$relogin = $connected && !empty($settings['bold']['relogin_required']);
 
-// Load the device list from Bold once the account is connected.
-$devices = $connected ? $bold->discover() : [];
+// Load the device list from Bold once the account is connected (pointless with a
+// rejected token - it would only add another failed refresh to the log).
+$devices = ($connected && !$relogin) ? $bold->discover() : [];
 
 $val = fn($key, $default = '') => htmlspecialchars((string)($settings['bold'][$key] ?? $default));
 ?>
@@ -68,11 +73,13 @@ $val = fn($key, $default = '') => htmlspecialchars((string)($settings['bold'][$k
 
     <!-- Bold account -->
     <h2><?= $L['SETTINGS.BOLD_SECTION'] ?></h2>
-    <div class="diag-step <?= $connected ? 'ok' : 'bad' ?>">
-        <span class="mark"><?= $connected ? '✓' : '✗' ?></span>
-        <span class="detail"><?= $connected ? $L['SETTINGS.ACCOUNT_CONNECTED'] : $L['SETTINGS.ACCOUNT_DISCONNECTED'] ?></span>
+    <?php $accountOk = $connected && !$relogin; ?>
+    <div class="diag-step <?= $accountOk ? 'ok' : 'bad' ?>">
+        <span class="mark"><?= $accountOk ? '✓' : '✗' ?></span>
+        <span class="detail"><?= $relogin ? $L['SETTINGS.ACCOUNT_RELOGIN']
+            : ($connected ? $L['SETTINGS.ACCOUNT_CONNECTED'] : $L['SETTINGS.ACCOUNT_DISCONNECTED']) ?></span>
     </div>
-    <p><a href="login.php" class="ui-btn ui-btn-<?= $connected ? 'a' : 'b' ?> ui-corner-all ui-btn-inline">
+    <p><a href="login.php" class="ui-btn ui-btn-<?= $accountOk ? 'a' : 'b' ?> ui-corner-all ui-btn-inline">
         <?= $connected ? $L['SETTINGS.RELOGIN_BTN'] : $L['SETTINGS.LOGIN_BTN'] ?>
     </a></p>
 
@@ -113,6 +120,17 @@ $val = fn($key, $default = '') => htmlspecialchars((string)($settings['bold'][$k
     <button type="button" id="btnActivateTest" class="ui-btn ui-btn-b ui-corner-all ui-btn-inline"><?= $L['SETTINGS.ACTIVATE_BTN'] ?></button>
     <div id="diagResult" class="diag-result"></div>
 
+    <?php $authLog = $bold->authLog(30); ?>
+    <div data-role="collapsible" data-collapsed="true" data-inset="true">
+        <h3><?= $L['SETTINGS.AUTH_LOG'] ?></h3>
+        <p class="hint"><?= $L['SETTINGS.AUTH_LOG_HELP'] ?></p>
+        <?php if ($authLog): ?>
+            <pre class="auth-log"><?= htmlspecialchars(implode("\n", $authLog)) ?></pre>
+        <?php else: ?>
+            <p class="hint"><?= $L['SETTINGS.AUTH_LOG_EMPTY'] ?></p>
+        <?php endif; ?>
+    </div>
+
     <!-- Miniserver / trigger -->
     <h2><?= $L['SETTINGS.MS_SECTION'] ?></h2>
     <div class="ui-field-contain">
@@ -138,18 +156,6 @@ $val = fn($key, $default = '') => htmlspecialchars((string)($settings['bold'][$k
         <h3><?= $L['SETTINGS.ADVANCED'] ?></h3>
         <p class="hint"><?= $L['SETTINGS.ADVANCED_HELP'] ?></p>
         <div class="ui-field-contain">
-            <label for="client_id"><?= $L['SETTINGS.CLIENT_ID'] ?></label>
-            <input type="text" id="client_id" name="client_id" value="<?= $val('client_id') ?>">
-        </div>
-        <div class="ui-field-contain">
-            <label for="client_secret"><?= $L['SETTINGS.CLIENT_SECRET'] ?></label>
-            <input type="password" id="client_secret" name="client_secret" value="<?= $val('client_secret') ?>">
-        </div>
-        <div class="ui-field-contain">
-            <label for="refresh_token"><?= $L['SETTINGS.REFRESH_TOKEN'] ?></label>
-            <input type="text" id="refresh_token" name="refresh_token" value="<?= $val('refresh_token') ?>">
-        </div>
-        <div class="ui-field-contain">
             <label for="poll_interval"><?= $L['SETTINGS.POLL'] ?></label>
             <input type="number" id="poll_interval" name="poll_interval"
                    value="<?= htmlspecialchars((string)($settings['poll_interval_seconds'] ?? 300)) ?>">
@@ -165,5 +171,5 @@ $val = fn($key, $default = '') => htmlspecialchars((string)($settings['bold'][$k
     <button type="submit" class="ui-btn ui-btn-b ui-corner-all"><?= $L['COMMON.SAVE'] ?></button>
 </form>
 
-<script src='assets/index.js?v=4'></script>
+<script src='assets/index.js?v=5'></script>
 <?php LBWeb::lbfooter(); ?>

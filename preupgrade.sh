@@ -33,4 +33,12 @@ else
     echo "<INFO> bold2lox: no existing settings.json found, nothing to back up."
 fi
 
+# Best effort: keep the token log (auth.log) across the update. Diagnostics only,
+# so a failure here never aborts the update.
+LOGLIVE="$LBHOME/data/plugins/$PFOLDER/auth.log"
+LOGBACKUP="$LBHOME/data/system/${PFOLDER}_auth_backup.log"
+if [ -f "$LOGLIVE" ] && cp -p "$LOGLIVE" "$LOGBACKUP" 2>/dev/null; then
+    echo "<OK> bold2lox: token log backed up"
+fi
+
 exit 0

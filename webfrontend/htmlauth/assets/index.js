@@ -88,7 +88,10 @@
         var form = document.querySelector("form");
         if (!form) return Promise.resolve();
         return fetch("save.php", { method: "POST", body: new FormData(form) })
-            .then(function (r) { return r.json(); });
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d || !d.ok) throw new Error("saving the settings failed");
+            });
     }
 
     function runTest(what) {

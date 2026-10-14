@@ -20,5 +20,6 @@
     "udp_port": 4001
   },
   "poll_interval_seconds": 300,
+  "keepalive_hours": 12,
   "http_timeout_seconds": 15
 }
